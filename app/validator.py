@@ -33,13 +33,7 @@ def _enforced_directives(
     kept: list[DirectiveInterpretation] = []
     for d in directives:
         t = d.directive_type
-        if t == "no_op":
-            kept.append(d)
-        elif t == "minimum_battery_reserve" and "reserve" not in relax:
-            kept.append(d)
-        elif t == "max_grid_window" and "grid" not in relax:
-            kept.append(d)
-        elif t in ("no_charge_window", "no_discharge_window") and "windows" not in relax:
+        if t == "no_op" or t == "minimum_battery_reserve" and "reserve" not in relax or t == "max_grid_window" and "grid" not in relax or t in ("no_charge_window", "no_discharge_window") and "windows" not in relax:
             kept.append(d)
     return kept
 

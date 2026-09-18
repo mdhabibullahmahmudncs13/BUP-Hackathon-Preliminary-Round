@@ -22,9 +22,10 @@ FALLBACK_MODEL = "meta-llama/llama-3.1-70b-instruct"  # same provider, fallback 
 
 SYSTEM_PROMPT = """You interpret campus operator notes for a 24-hour energy scheduler.
 Hours are indexed 0..23 (hour 0 = midnight, 13 = 1 PM). Time windows are
-start-inclusive and end-exclusive: "from 1 PM to 3 PM" or "between 1 PM and 3 PM"
-or "from 13:00 until 15:00" all mean hours [13, 14]. "from 6 PM until 9 PM"
-means [18, 19, 20].
+start-inclusive and END-EXCLUSIVE: "from 1 PM to 3 PM", "between 1 PM and 3 PM",
+"from 13:00 until 15:00" all mean hours [13, 14]. "from 6 PM until 9 PM" means
+[18, 19, 20]. "until 10 PM" or "to 10 PM" means the window ENDS at 10 PM, so
+the last included hour is 9 PM: [18, 19, 20, 21]. NEVER include the end hour.
 
 For EACH note, return exactly one object with these keys:
 - "note_index": the zero-based index of the note.

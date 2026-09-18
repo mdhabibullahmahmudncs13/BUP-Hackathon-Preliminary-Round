@@ -1,7 +1,7 @@
 [project]
 name = "directive-optimizer"
 version = "0.1.0"
-description = "Two-endpoint microservice: LLM extracts battery directives from notes, PuLP LP optimizer builds a 24-hour schedule."
+description = "GridWise: LLM-interpreted operator directives guardrailed into an MILP that minimizes 24-hour campus grid cost."
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
@@ -22,6 +22,14 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+filterwarnings = ["ignore:.*:DeprecationWarning:pulp[.]*", "ignore:.*:DeprecationWarning:coincurf[.]*"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]
 
 [tool.ruff]
 line-length = 100

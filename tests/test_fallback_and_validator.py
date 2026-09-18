@@ -233,4 +233,4 @@ def test_no_charge_window_violation_detected():
     assert any("no_charge_window" in i for i in issues)
 
 
-from app.validator import validate_plan  # noqa: E402
+from app.validator import validate_plan

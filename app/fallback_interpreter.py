@@ -19,10 +19,10 @@ from .models import (
     WindowAdjustment,
 )
 
-# Hour mentions: "1 PM", "10 am", or explicit 24h "13:00" (colon form).
-# Bare numbers ("20%", "90 kWh") deliberately do NOT match.
+# Hour mentions: "1 PM", "10 am", explicit 24h "13:00" (colon form),
+# or the words "noon"/"midnight". Bare numbers ("20%", "90 kWh") never match.
 _TIME_RE = re.compile(
-    r"\b(?:(\d{1,2})\s*(am|pm)|(\d{1,2}):(00|30))\b",
+    r"\b(?:(\d{1,2})\s*(am|pm)|(\d{1,2}):(00|30)|(noon|midnight))\b",
     re.IGNORECASE,
 )
 
@@ -43,15 +43,18 @@ def _to_24h(hour: int, suffix: str | None) -> int:
 
 
 def _time_mentions(text: str) -> list[int]:
-    """All hour mentions in order: '1 PM' -> 13, '13:00' -> 13, '12 am' -> 0."""
+    """All hour mentions in order: '1 PM' -> 13, '13:00' -> 13, 'noon' -> 12."""
     hours: list[int] = []
     for m in _TIME_RE.finditer(text):
         if m.group(1) is not None:
             hours.append(_to_24h(int(m.group(1)), m.group(2)))
-        else:
+        elif m.group(3) is not None:
             h = int(m.group(3))
             if 0 <= h <= 23:
                 hours.append(h)
+        else:
+            word = (m.group(5) or "").lower()
+            hours.append(12 if word == "noon" else 0)
     return hours
 
 
@@ -79,7 +82,7 @@ def _try_adjustment(model_cls, **kwargs):
     """Build an adjustment or None if the values are malformed."""
     try:
         return model_cls(**kwargs)
-    except Exception:
+    except Exception:  # noqa: BLE001 - fail-safe: any malformed value -> None
         return None
 
 
@@ -129,10 +132,17 @@ def _fallback_interpret_one(note: str, battery_capacity_kwh: float) -> Directive
     ):
         percentages = [float(p) for p in _NUM_RE.findall(lower)]
         factor: float | None = None
-        if percentages and re.search(r"reduc|drop|degrad|leave|curtail|fall", lower):
-            # "80% reduction" -> 0.2 ; "drop to 20%" -> 0.2
-            reduction_wording = bool(re.search(r"reduc|curtail", lower))
-            factor = 1.0 - percentages[0] / 100.0 if reduction_wording else percentages[0] / 100.0
+        if percentages:
+            p = percentages[0] / 100.0
+            if re.search(r"reduc|curtail|below normal|less than normal", lower):
+                # "an 80% reduction" -> 0.2 usable
+                factor = 1.0 - p
+            elif re.search(
+                r"drop|fall|down to|treated as|leave|of (the )?(normal|forecast|usual|output)",
+                lower,
+            ):
+                # "drop to 20%" / "treated as 25% of the forecast" -> usable fraction
+                factor = p
         if factor is None:
             for word, f in _SPelled_FACTOR.items():
                 if word in lower and re.search(r"of (the )?(normal|forecast|usual|output)", lower):
@@ -212,7 +222,7 @@ def heuristic_interpret(notes: list[str], battery_capacity_kwh: float) -> list[D
     for i, note in enumerate(notes):
         try:
             d = _fallback_interpret_one(note, battery_capacity_kwh)
-        except Exception:  # absolute last resort: never let a note crash the service
+        except Exception:  # noqa: BLE001 - absolute last resort: a note must never crash the service
             d = _no_op(i, "Interpretation failed; treating the note as a no-op.")
         results.append(
             DirectiveInterpretation(

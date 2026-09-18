@@ -146,6 +146,30 @@ async def _interpret_via_llm(req: OptimizeRequest) -> list[dict[str, Any]]:
     )
 
 
+def _normalize_adjustment(
+    directive: DirectiveInterpretation, note: str, capacity_kwh: float
+) -> DirectiveInterpretation:
+    """Deterministic time/value normalization of an LLM directive (allowed
+    postprocessing per the rules). When the deterministic parser confidently
+    extracts the SAME directive type from the note, its hours and numeric value
+    take precedence — this corrects LLM off-by-one errors on exclusive window
+    ends (e.g. "from 6 PM until 10 PM" must include hour 21). Otherwise the
+    LLM output stands untouched."""
+    if directive.directive_type == "no_op" or not directive.applies:
+        return directive
+    det = heuristic_interpret([note], capacity_kwh)[0]
+    if det.directive_type != directive.directive_type or not det.applies:
+        return directive
+    det_adj, llm_adj = det.structured_adjustment, directive.structured_adjustment
+    if det_adj is None or llm_adj is None or det_adj.hours == llm_adj.hours:
+        return directive
+    logger.info(
+        "note %d: normalizing hours %s -> %s via deterministic parser",
+        directive.note_index, llm_adj.hours, det_adj.hours,
+    )
+    return directive.model_copy(update={"structured_adjustment": det_adj})
+
+
 async def _interpret_all_notes(req: OptimizeRequest) -> list[DirectiveInterpretation]:
     """LLM-first interpretation with deterministic guardrails and fallback."""
     capacity = req.battery.capacity_kwh
@@ -164,7 +188,11 @@ async def _interpret_all_notes(req: OptimizeRequest) -> list[DirectiveInterpreta
         for i, d in enumerate(interpretations):
             if d.note_index != i:
                 interpretations[i] = d.model_copy(update={"note_index": i})
-        return interpretations
+        # Deterministic normalization of time windows / numeric values.
+        return [
+            _normalize_adjustment(d, note, capacity)
+            for d, note in zip(interpretations, req.operator_notes)
+        ]
     except LLMError:
         logger.warning("LLM unavailable; using deterministic fallback interpreter")
         return heuristic_interpret(list(req.operator_notes), capacity)

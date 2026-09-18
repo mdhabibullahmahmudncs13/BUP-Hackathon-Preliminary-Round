@@ -1,6 +1,5 @@
 """API tests via FastAPI TestClient with a mocked LLM (no network)."""
 
-import json
 from unittest.mock import patch
 
 import pytest

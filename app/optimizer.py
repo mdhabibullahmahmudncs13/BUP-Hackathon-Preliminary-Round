@@ -30,9 +30,12 @@ solar-first dispatch, grid = net load - solar used, battery chain recomputed.
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import pulp
+
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="pulp")
 
 from .models import DirectiveInterpretation, OptimizeRequest
 

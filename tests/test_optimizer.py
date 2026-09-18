@@ -55,12 +55,10 @@ def test_arbitrage_shifts_energy_to_expensive_hours():
     tariffs = [8.0] * 12 + [30.0] * 12
     req, dirs = make_request(
         overrides_hours=None,
-        **{
-            "hours": [
+        hours=[
                 {"hour": h, "demand_kwh": 100.0, "solar_kwh": 0.0, "tariff_bdt_per_kwh": t}
                 for h, t in enumerate(tariffs)
-            ]
-        },
+            ],
     )
     plan, _ = optimize_schedule(req, dirs)
     peak = peak_hours(req, 2)

@@ -8,12 +8,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /srv
 
-# Install deps first for layer caching
+# Install the package (deps + app code)
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir .
-
-# App code
 COPY app ./app
+RUN pip install --no-cache-dir .
 
 # Non-root user for basic hardening
 RUN useradd --create-home appuser

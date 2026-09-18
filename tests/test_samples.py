@@ -11,10 +11,12 @@ our recalculated cost against the reference optimal cost.
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.llm import LLMError
 from app.main import app
 from app.validator import validate_plan
 
@@ -33,7 +35,11 @@ def client():
         from app import main as main_module
 
         main_module._response_cache.clear()
-        yield test_client
+        # Deterministic harness: force the fallback interpreter so tests never
+        # depend on network/LLM availability or cost. The live-LLM path is
+        # exercised separately (tests/test_live_llm.py, skipped by default).
+        with patch("app.main._interpret_via_llm", side_effect=LLMError("offline test")):
+            yield test_client
         main_module._response_cache.clear()
 
 
@@ -118,7 +124,6 @@ def test_public_sample_case(client, case):
     assert body["peak_grid_kwh"] == pytest.approx(max(p.grid_kwh for p in plan), abs=0.01)
 
     # --- cost sanity: never worse than 5% above the reference optimal ---
-    ref_cost = case["expected_output"]["total_cost_bdt"]
     # Our cost is recalculated from our plan; the reference used its own plan.
     ref_recalc = sum(
         p["grid_kwh"] * payload["hours"][p["hour"]]["tariff_bdt_per_kwh"]
