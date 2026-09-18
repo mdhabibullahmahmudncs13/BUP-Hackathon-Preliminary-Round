@@ -1,0 +1,71 @@
+"""Build and push the GridWise Docker fallback image to GHCR.
+
+Triggered manually (workflow_dispatch) or on pushes that touch the Dockerfile.
+Uses the repo's built-in GITHUB_TOKEN (permissions: packages: write), so no
+local registry credentials are needed.
+
+Image: ghcr.io/mdhabibullahmahmudncs13/gridwise-optimizer
+Tags: 'latest' plus the triggering git SHA (exact, immutable reference for
+the submission form).
+"""
+
+name: docker-publish
+
+on:
+  workflow_dispatch:
+  push:
+    paths: [Dockerfile, requirements.txt, app/**, .github/workflows/docker-publish.yml]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: mdhabibullahmahmudncs13/gridwise-optimizer
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (latest + SHA tags)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify the pushed image starts and passes /health
+        run: |
+          DIGEST_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          docker pull "$DIGEST_TAG"
+          docker run --rm -d --name verify -p 8000:8000 \
+            -e OPENROUTER_API_KEY=dummy-for-health-check "$DIGEST_TAG"
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8000/health | grep -q '"status":"ok"'; then
+              echo "/health OK"
+              docker stop verify
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "health check failed"
+          docker logs verify
+          exit 1
