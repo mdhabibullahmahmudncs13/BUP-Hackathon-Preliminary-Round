@@ -1,0 +1,927 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GridWise — Campus Grid Control Room</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  html { color-scheme: dark; }
+  body { font-feature-settings: "tnum"; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  #tableWrap thead th { position: sticky; top: 0; z-index: 10; background: #0f172a; }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button { opacity: .25; }
+  input:focus { outline: none; }
+  .scan { background: linear-gradient(90deg, transparent, rgba(245,158,11,.6), transparent); }
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(30,41,59,.35) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(30,41,59,.35) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+  .fade-in { animation: fadeIn .45s ease both; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .char { display: inline-block; width: .62em; height: 1.05em; margin: 0 1px; vertical-align: -3px;
+          clip-path: polygon(0 18%, 100% 0, 100% 100%, 0 100%); transition: height .25s, background .25s; }
+  @media (max-width: 1023px) { #stickyBar { position: static !important; } }
+</style>
+</head>
+<body class="bg-slate-950 text-slate-200 font-sans min-h-screen grid-bg">
+
+<!-- ======================= HEADER ======================= -->
+<header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-40">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2">
+    <div class="flex items-center gap-3">
+      <div class="h-9 w-9 rounded bg-amber-500/10 border border-amber-500/40 flex items-center justify-center text-amber-400 text-lg">⚡</div>
+      <div>
+        <h1 class="text-lg font-bold tracking-tight text-slate-100">GRIDWISE <span class="text-amber-400">//</span> CONTROL ROOM</h1>
+        <p class="text-[11px] uppercase tracking-[0.2em] text-slate-500">campus energy optimization · 24h horizon</p>
+      </div>
+    </div>
+    <div class="flex-1"></div>
+    <div class="flex items-center gap-2 text-xs font-mono">
+      <span class="text-slate-500">API</span>
+      <input id="baseUrl" spellcheck="false" placeholder="(same origin)"
+             class="w-56 bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-slate-300 focus:border-amber-500/60">
+      <button id="healthBtn" class="border border-slate-700 hover:border-emerald-500/60 hover:text-emerald-300 rounded px-2.5 py-1.5 transition-colors">check /health</button>
+      <span id="healthState" class="text-slate-500">—</span>
+    </div>
+  </div>
+  <div class="h-px bg-slate-800"><div id="scanline" class="h-px w-1/4 scan opacity-0"></div></div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+  <!-- ======================= LEFT: INPUT PANEL ======================= -->
+  <section class="lg:col-span-5 xl:col-span-4 flex flex-col gap-5">
+
+    <!-- Scenario + hours table -->
+    <div class="bg-slate-900 border border-slate-800 rounded-lg">
+      <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+        <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Scenario Input</h2>
+        <span class="text-[10px] font-mono text-slate-600">hours 0–23 · local</span>
+      </div>
+      <div class="px-4 pt-3">
+        <label class="text-[11px] uppercase tracking-wider text-slate-500">Scenario ID</label>
+        <input id="scenarioId" value="CAMPUS-DEMO-01" spellcheck="false"
+               class="mt-1 w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-2 font-mono text-sm focus:border-amber-500/60">
+        <p class="err hidden mt-1 text-xs text-red-400"></p>
+      </div>
+      <div class="px-4 py-3 flex gap-2">
+        <button id="loadExample" class="flex-1 border border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/10 rounded px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-colors">⇩ Load example scenario</button>
+        <button id="clearTable" class="border border-slate-700 text-slate-400 hover:border-slate-500 rounded px-3 py-2 text-xs uppercase tracking-wider transition-colors">Clear</button>
+      </div>
+      <div id="tableWrap" class="mx-4 mb-4 border border-slate-800 rounded overflow-y-auto" style="max-height:420px">
+        <table class="w-full text-xs font-mono">
+          <thead>
+            <tr class="text-slate-500 uppercase text-[10px] tracking-wider">
+              <th class="py-2 px-2 text-left font-medium border-b border-slate-800">Hr</th>
+              <th class="py-2 px-2 text-left font-medium border-b border-slate-800">Demand&nbsp;kWh</th>
+              <th class="py-2 px-2 text-left font-medium border-b border-slate-800 text-emerald-500/80">Solar&nbsp;kWh</th>
+              <th class="py-2 px-2 text-left font-medium border-b border-slate-800 text-amber-500/80">Tariff&nbsp;BDT</th>
+            </tr>
+          </thead>
+          <tbody id="hoursBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Battery + notes -->
+    <div class="bg-slate-900 border border-slate-800 rounded-lg">
+      <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+        <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Battery &amp; Storage</h2>
+        <span class="text-[10px] font-mono text-sky-500/70">BESS-01</span>
+      </div>
+      <div class="p-4 grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-[11px] uppercase tracking-wider text-slate-500">Capacity kWh</label>
+          <input type="number" id="capacity" value="220" min="0" step="any" data-bat="capacity_kwh"
+                 class="mt-1 w-full bg-slate-950 border border-slate-800 rounded px-2 py-2 font-mono text-sm focus:border-sky-500/60">
+          <p class="err hidden mt-1 text-xs text-red-400"></p>
+        </div>
+        <div>
+          <label class="text-[11px] uppercase tracking-wider text-slate-500">Initial energy kWh</label>
+          <input type="number" id="initialEnergy" value="110" min="0" step="any" data-bat="initial_energy_kwh"
+                 class="mt-1 w-full bg-slate-950 border border-slate-800 rounded px-2 py-2 font-mono text-sm focus:border-sky-500/60">
+          <p class="err hidden mt-1 text-xs text-red-400"></p>
+        </div>
+        <div>
+          <label class="text-[11px] uppercase tracking-wider text-slate-500">Minimum energy kWh</label>
+          <input type="number" id="minEnergy" value="40" min="0" step="any" data-bat="minimum_energy_kwh"
+                 class="mt-1 w-full bg-slate-950 border border-slate-800 rounded px-2 py-2 font-mono text-sm focus:border-sky-500/60">
+          <p class="err hidden mt-1 text-xs text-red-400"></p>
+        </div>
+        <div>
+          <label class="text-[11px] uppercase tracking-wider text-slate-500">Max charge kWh/h</label>
+          <input type="number" id="maxCharge" value="50" min="0" step="any" data-bat="max_charge_kwh_per_hour"
+                 class="mt-1 w-full bg-slate-950 border border-slate-800 rounded px-2 py-2 font-mono text-sm focus:border-sky-500/60">
+          <p class="err hidden mt-1 text-xs text-red-400"></p>
+        </div>
+        <div>
+          <label class="text-[11px] uppercase tracking-wider text-slate-500">Max discharge kWh/h</label>
+          <input type="number" id="maxDischarge" value="50" min="0" step="any" data-bat="max_discharge_kwh_per_hour"
+                 class="mt-1 w-full bg-slate-950 border border-slate-800 rounded px-2 py-2 font-mono text-sm focus:border-sky-500/60">
+          <p class="err hidden mt-1 text-xs text-red-400"></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-slate-900 border border-slate-800 rounded-lg">
+      <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+        <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Operator Notes</h2>
+        <div class="flex gap-1">
+          <button id="addNote" title="Add note" class="border border-slate-700 text-slate-300 hover:border-emerald-500/60 rounded w-7 h-7 leading-none transition-colors">+</button>
+          <button id="removeNote" title="Remove note" class="border border-slate-700 text-slate-300 hover:border-red-500/60 rounded w-7 h-7 leading-none transition-colors">−</button>
+        </div>
+      </div>
+      <div id="notesList" class="p-4 flex flex-col gap-3"></div>
+      <p class="px-4 pb-3 text-[11px] text-slate-600">1–3 natural-language directives, e.g. “Solar output will drop to about 20% from 1 PM to 3 PM.”</p>
+    </div>
+  </section>
+
+  <!-- ======================= RIGHT: CONSOLE / RESULTS ======================= -->
+  <section class="lg:col-span-7 xl:col-span-8 flex flex-col gap-5">
+
+    <div id="stickyBar" class="lg:sticky lg:top-[76px] z-30">
+      <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 flex flex-wrap items-center gap-3">
+        <button id="optimizeBtn" class="flex-1 min-w-[200px] bg-amber-500 text-slate-950 font-bold rounded px-4 py-2.5 text-sm uppercase tracking-wider hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+          ⚡ Optimize
+        </button>
+        <div id="statusLine" class="text-xs font-mono text-slate-500 flex-1 min-w-[180px]">STANDBY — waiting for operator input</div>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loadingPanel" class="hidden bg-slate-900 border border-slate-800 rounded-lg p-6">
+      <div class="flex items-center gap-4">
+        <div class="h-10 w-10 rounded-full border-2 border-slate-700 border-t-amber-400 animate-spin"></div>
+        <div>
+          <p id="loadingText" class="font-mono text-sm text-amber-300">Interpreting operator notes…</p>
+          <p id="loadingSub" class="text-xs text-slate-500 mt-0.5">LLM round-trip + MILP solve · typical 1–5 s · hard abort at 30 s</p>
+        </div>
+        <span id="loadingClock" class="ml-auto font-mono text-xl text-slate-400">0.0s</span>
+      </div>
+      <div class="mt-4 h-1 bg-slate-800 rounded overflow-hidden"><div id="loadBar" class="h-full bg-amber-500/70 transition-all duration-500" style="width:0%"></div></div>
+    </div>
+
+    <!-- Error panel -->
+    <div id="errorPanel" class="hidden fade-in"></div>
+
+    <!-- Empty state -->
+    <div id="emptyState" class="bg-slate-900 border border-slate-800 rounded-lg p-10 text-center">
+      <div class="text-4xl mb-3">⚡</div>
+      <h2 class="text-lg font-semibold text-slate-200">GridWise plan operator</h2>
+      <p class="mt-2 max-w-xl mx-auto text-sm text-slate-400">
+        Describe operating constraints in plain language — solar outages, battery maintenance, feeder limits —
+        and GridWise interprets them, then computes a cost-minimal 24-hour schedule of grid draw, solar use and
+        battery charge/discharge.
+      </p>
+      <button id="loadExample2" class="mt-6 bg-emerald-500/10 border border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/20 rounded px-5 py-2.5 text-sm font-semibold transition-colors">⇩ Load example scenario</button>
+      <p class="mt-3 text-xs text-slate-600 font-mono">POST /optimize-energy · GET /health</p>
+    </div>
+
+    <!-- Results -->
+    <div id="results" class="hidden flex-col gap-5">
+
+      <!-- KPI strip -->
+      <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
+          <p class="text-[11px] uppercase tracking-wider text-slate-500">Total cost</p>
+          <p class="mt-1 font-mono text-2xl text-amber-400" id="kpiCost">—</p>
+          <p class="text-[10px] text-slate-600 font-mono">total_cost_bdt</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
+          <p class="text-[11px] uppercase tracking-wider text-slate-500">Total grid draw</p>
+          <p class="mt-1 font-mono text-2xl text-slate-200" id="kpiGrid">—</p>
+          <p class="text-[10px] text-slate-600 font-mono">total_grid_kwh</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
+          <p class="text-[11px] uppercase tracking-wider text-slate-500">Peak grid draw</p>
+          <p class="mt-1 font-mono text-2xl text-slate-200" id="kpiPeak">—</p>
+          <p class="text-[10px] text-slate-600 font-mono">peak_grid_kwh</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
+          <p class="text-[11px] uppercase tracking-wider text-slate-500">Plan summary</p>
+          <p class="mt-1 text-xs text-slate-300 leading-relaxed" id="kpiSummary" style="display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden">—</p>
+        </div>
+      </div>
+
+      <!-- Directive trace -->
+      <div class="bg-slate-900 border border-slate-800 rounded-lg">
+        <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+          <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Directive Interpretation Trace</h2>
+          <span class="text-[10px] font-mono text-slate-600" id="dirCount"></span>
+        </div>
+        <div id="directives" class="p-4 flex flex-col gap-3"></div>
+      </div>
+
+      <!-- Charts -->
+      <div class="bg-slate-900 border border-slate-800 rounded-lg">
+        <div class="px-4 py-3 border-b border-slate-800 flex flex-wrap items-center gap-2">
+          <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mr-2">24-Hour Schedule</h2>
+          <button data-tab="energy" class="tabBtn border border-amber-500/60 bg-amber-500/10 text-amber-300 rounded px-3 py-1 text-xs font-semibold transition-colors">Energy</button>
+          <button data-tab="battery" class="tabBtn border border-slate-700 text-slate-400 rounded px-3 py-1 text-xs font-semibold transition-colors">Battery</button>
+          <span class="flex-1"></span>
+          <span class="text-[10px] font-mono text-slate-600 hidden sm:inline">▲ solar (emerald) · ▄ grid (amber) · — tariff</span>
+        </div>
+        <div id="tab-energy" class="p-4">
+          <div id="energyChartWrap" class="relative h-[300px] transition-[height] duration-300">
+            <canvas id="energyChart"></canvas>
+          </div>
+          <p class="mt-2 text-[11px] text-slate-600">Flags above a bar mark hours covered by a directive window (hover the bar for details).</p>
+        </div>
+        <div id="tab-battery" class="p-4 hidden">
+          <div class="flex flex-wrap gap-2 mb-3" id="batteryCells"></div>
+          <div class="relative h-[220px]">
+            <canvas id="batteryChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Raw plan -->
+      <details class="bg-slate-900 border border-slate-800 rounded-lg">
+        <summary class="px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 cursor-pointer hover:text-slate-200">Hourly plan table (raw API rows)</summary>
+        <div class="max-h-80 overflow-auto border-t border-slate-800">
+          <table class="w-full text-[11px] font-mono">
+            <thead class="text-slate-500 uppercase text-[10px]">
+              <tr><th class="py-2 px-3 text-left">Hr</th><th class="py-2 px-3 text-right">grid_kwh</th><th class="py-2 px-3 text-right">solar_used</th><th class="py-2 px-3 text-left">action</th><th class="py-2 px-3 text-right">batt_kwh</th><th class="py-2 px-3 text-right">batt_after</th></tr>
+            </thead>
+            <tbody id="planBody" class="divide-y divide-slate-800/60"></tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+  </section>
+</main>
+
+<footer class="max-w-7xl mx-auto px-4 pb-8 pt-2 text-[11px] text-slate-600 font-mono flex flex-wrap gap-x-4">
+  <span>GridWise UI v1.0</span><span>·</span><span>frontend only — optimization runs server-side</span><span>·</span>
+  <span>accents: <span class="text-amber-400">grid</span> / <span class="text-emerald-400">solar</span> / <span class="text-sky-400">battery</span></span>
+</footer>
+
+<script>
+"use strict";
+/* ============================================================
+   GridWise control room — vanilla JS, no build step.
+   Talks to POST /optimize-energy + GET /health on the same
+   origin by default; base URL overridable in the header field.
+   ============================================================ */
+
+const $ = (id) => document.getElementById(id);
+const AMBER = "#f59e0b", EMERALD = "#10b981", SKY = "#0ea5e9", RED = "#ef4444";
+
+/* ---------------- example scenario ---------------- */
+const EXAMPLE = {
+  scenario_id: "CAMPUS-DEMO-01",
+  hours: [
+    [0,95,0,6],[1,88,0,6],[2,82,0,5],[3,80,0,5],[4,84,0,5],[5,96,0,6],
+    [6,115,6,8],[7,138,24,10],[8,158,55,12],[9,172,95,14],[10,182,135,16],
+    [11,188,165,16],[12,192,185,15],[13,186,170,14],[14,176,140,13],
+    [15,168,88,14],[16,174,42,18],[17,190,10,22],[18,212,0,28],[19,222,0,30],
+    [20,210,0,26],[21,180,0,18],[22,140,0,10],[23,108,0,7]
+  ],
+  battery: { capacity_kwh: 220, initial_energy_kwh: 110, minimum_energy_kwh: 40,
+             max_charge_kwh_per_hour: 50, max_discharge_kwh_per_hour: 50 },
+  notes: [
+    "Facilities will wash the rooftop solar panels from noon until 2 PM. During cleaning, usable solar should be treated as roughly 25% of the forecast.",
+    "The sports office moved next month's registration deadline."
+  ]
+};
+
+/* ---------------- state ---------------- */
+let dirty = false;        // inputs changed since last successful run (stale-results marker)
+let touched = false;      // user has interacted -> surface inline validation errors
+let inflight = false;     // request in flight
+let lastCall = null;      // {url, body} for retry
+let energyChart = null, batteryChart = null;
+let notesCount = 0;
+
+/* ---------------- tiny helpers ---------------- */
+function fmt(n, d = 1) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  return Number(n).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function setErr(input, msg) {
+  const p = input.parentElement.querySelector(".err");
+  if (!p) return;
+  if (msg) { p.textContent = msg; p.classList.remove("hidden"); input.classList.add("border-red-500/70"); }
+  else { p.classList.add("hidden"); input.classList.remove("border-red-500/70"); }
+}
+function apiBase() {
+  const v = $("baseUrl").value.trim();
+  return v === "" ? "" : v.replace(/\/+$/, "");
+}
+function nowStamp() {
+  return new Date().toLocaleTimeString("en-GB", { hour12: false });
+}
+function setStatus(text, cls) {
+  const el = $("statusLine");
+  el.textContent = text;
+  el.className = "text-xs font-mono flex-1 min-w-[180px] " + (cls || "text-slate-500");
+}
+
+/* ---------------- hours table ---------------- */
+function buildHourRows() {
+  const tbody = $("hoursBody");
+  tbody.innerHTML = "";
+  for (let h = 0; h < 24; h++) {
+    const tr = document.createElement("tr");
+    tr.className = "border-t border-slate-800/60 hover:bg-slate-800/30";
+    tr.innerHTML = `
+      <td class="py-1 px-2 text-slate-500">${String(h).padStart(2, "0")}</td>
+      <td class="py-1 px-1"><input type="number" min="0" step="any" data-h="${h}" data-f="demand_kwh" class="hourIn w-full bg-transparent text-slate-200"></td>
+      <td class="py-1 px-1"><input type="number" min="0" step="any" data-h="${h}" data-f="solar_kwh" class="hourIn w-full bg-transparent text-emerald-300"></td>
+      <td class="py-1 px-1"><input type="number" min="0" step="any" data-h="${h}" data-f="tariff_bdt_per_kwh" class="hourIn w-full bg-transparent text-amber-300"></td>`;
+    tbody.appendChild(tr);
+  }
+  tbody.querySelectorAll(".hourIn").forEach((inp) => inp.addEventListener("input", onDirty));
+}
+function fillHours(hours) {
+  document.querySelectorAll(".hourIn").forEach((inp) => {
+    const v = hours[Number(inp.dataset.h)][inp.dataset.f];
+    inp.value = v;
+  });
+}
+function readHours() {
+  const out = [];
+  document.querySelectorAll(".hourIn").forEach((inp) => {
+    const h = Number(inp.dataset.h);
+    out[h] = out[h] || {};
+    out[h][inp.dataset.f] = inp.value;
+  });
+  return out;
+}
+function clearHours() {
+  document.querySelectorAll(".hourIn").forEach((inp) => { inp.value = ""; });
+}
+
+/* ---------------- operator notes ---------------- */
+function addNote(value = "", focus = true) {
+  if (notesCount >= 3) return;
+  const wrap = document.createElement("div");
+  wrap.className = "noteRow";
+  wrap.innerHTML = `
+    <div class="flex items-center gap-2">
+      <span class="font-mono text-[10px] text-slate-500 w-6" data-idx></span>
+      <input spellcheck="false" placeholder="Operator note…" value="${esc(value)}"
+             class="noteIn flex-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-2 text-sm focus:border-emerald-500/60">
+    </div>
+    <p class="err hidden mt-1 text-xs text-red-400 ml-8"></p>`;
+  $("notesList").appendChild(wrap);
+  wrap.querySelector(".noteIn").addEventListener("input", onDirty);
+  notesCount++;
+  renumberNotes();
+  updateNoteButtons();
+  if (focus) wrap.querySelector(".noteIn").focus();
+}
+function renumberNotes() {
+  document.querySelectorAll("#notesList .noteRow").forEach((row, i) => {
+    row.querySelector("[data-idx]").textContent = "N" + i;
+  });
+}
+function removeNote() {
+  const rows = document.querySelectorAll("#notesList .noteRow");
+  if (rows.length <= 1) return;
+  rows[rows.length - 1].remove();
+  notesCount--;
+  renumberNotes();
+  updateNoteButtons();
+  validateAll();
+}
+function updateNoteButtons() {
+  $("addNote").disabled = notesCount >= 3;
+  $("removeNote").disabled = notesCount <= 1;
+  $("addNote").classList.toggle("opacity-30", notesCount >= 3);
+  $("removeNote").classList.toggle("opacity-30", notesCount <= 1);
+}
+function readNotes() {
+  return [...document.querySelectorAll("#notesList .noteIn")].map((i) => i.value);
+}
+
+/* ---------------- battery ---------------- */
+function readBattery() {
+  const out = {};
+  document.querySelectorAll("[data-bat]").forEach((inp) => { out[inp.dataset.bat] = inp.value; });
+  return out;
+}
+
+/* ---------------- validation ---------------- */
+function num(v) { return typeof v === "number" ? v : parseFloat(String(v).trim()); }
+
+function validateAll() {
+  let ok = true;
+
+  const sid = $("scenarioId");
+  const sidOk = sid.value.trim() !== "";
+  setErr(sid, sidOk ? "" : "Scenario ID is required.");
+  ok = ok && sidOk;
+
+  // hours: present, non-negative, finite, hour 0-23 unique
+  const hours = readHours();
+  let hourMsg = "";
+  for (let h = 0; h < 24; h++) {
+    const row = hours[h] || {};
+    for (const f of ["demand_kwh", "solar_kwh", "tariff_bdt_per_kwh"]) {
+      const v = num(row[f]);
+      if (row[f] === undefined || String(row[f]).trim() === "" || !Number.isFinite(v)) {
+        hourMsg = hourMsg || `Hour ${h}: ${f} must be a number.`;
+      } else if (v < 0) {
+        hourMsg = hourMsg || `Hour ${h}: ${f} must be ≥ 0.`;
+      }
+    }
+  }
+  // highlight bad cells + one summary message above the table
+  document.querySelectorAll(".hourIn").forEach((inp) => {
+    const v = num(inp.value);
+    const bad = inp.value.trim() === "" || !Number.isFinite(v) || v < 0;
+    inp.classList.toggle("border-red-500/70", bad && touched);
+    inp.classList.toggle("border-slate-800", !(bad && touched));
+  });
+  let tableMsg = $("tableMsg");
+  if (!tableMsg) {
+    tableMsg = document.createElement("p");
+    tableMsg.id = "tableMsg";
+    tableMsg.className = "mt-1 text-xs text-red-400 px-4";
+    $("tableWrap").before(tableMsg);
+  }
+  tableMsg.textContent = touched && hourMsg ? "⚠ " + hourMsg : "";
+  tableMsg.classList.toggle("hidden", !(touched && hourMsg));
+  ok = ok && !hourMsg;
+
+  // battery
+  const b = readBattery();
+  const labels = {
+    capacity_kwh: "capacity_kwh", initial_energy_kwh: "initial_energy_kwh",
+    minimum_energy_kwh: "minimum_energy_kwh", max_charge_kwh_per_hour: "max_charge_kwh_per_hour",
+    max_discharge_kwh_per_hour: "max_discharge_kwh_per_hour",
+  };
+  let batOk = true;
+  for (const k of Object.keys(labels)) {
+    const inp = document.querySelector(`[data-bat="${k}"]`);
+    const v = num(b[k]);
+    let m = "";
+    if (String(b[k]).trim() === "" || !Number.isFinite(v)) m = `${labels[k]} must be a number.`;
+    else if (v < 0) m = `${labels[k]} must be ≥ 0.`;
+    else if (k === "initial_energy_kwh" && num(b.capacity_kwh) !== undefined && v > num(b.capacity_kwh)) {
+      m = "initial_energy_kwh must be ≤ capacity_kwh.";
+    }
+    setErr(inp, m);
+    batOk = batOk && !m;
+  }
+  ok = ok && batOk;
+
+  // notes: at least one non-empty (errors surfaced once the user interacts)
+  let notesOk = false;
+  document.querySelectorAll("#notesList .noteIn").forEach((inp) => {
+    const bad = inp.value.trim() === "";
+    setErr(inp, bad && touched ? "Note must be non-empty (fill it or remove it)." : "");
+    if (!bad) notesOk = true;
+  });
+  ok = ok && notesOk;
+
+  const btn = $("optimizeBtn");
+  btn.disabled = inflight || !ok;
+  btn.classList.toggle("cursor-not-allowed", btn.disabled);
+  return ok;
+}
+
+function onDirty() {
+  dirty = true;
+  touched = true;
+  validateAll();
+  if (!$("results").classList.contains("hidden")) {
+    setStatus("INPUTS CHANGED — results stale; press Optimize to re-run", "text-slate-400");
+  }
+}
+
+/* ---------------- payload ---------------- */
+function buildPayload() {
+  const hours = readHours().map((row, h) => ({
+    hour: h,
+    demand_kwh: num(row.demand_kwh),
+    solar_kwh: num(row.solar_kwh),
+    tariff_bdt_per_kwh: num(row.tariff_bdt_per_kwh),
+  }));
+  const battery = {};
+  for (const [k, v] of Object.entries(readBattery())) battery[k] = num(v);
+  return {
+    scenario_id: $("scenarioId").value.trim(),
+    operator_notes: readNotes().map((s) => s.trim()).filter((s) => s !== ""),
+    hours,
+    battery,
+  };
+}
+
+/* ---------------- loading rotation ---------------- */
+const LOAD_MSGS = [
+  "Interpreting operator notes…",
+  "Guardrailing directive output…",
+  "Solving 24-hour schedule…",
+  "Rebalancing battery windows…",
+  "Validating plan against constraints…",
+  "Almost there — finishing solve…",
+];
+let loadTimer = null, clockTimer = null, loadIdx = 0;
+function startLoading() {
+  loadIdx = 0;
+  $("loadingText").textContent = LOAD_MSGS[0];
+  $("loadingPanel").classList.remove("hidden");
+  $("loadBar").style.width = "4%";
+  loadTimer = setInterval(() => {
+    loadIdx = Math.min(loadIdx + 1, LOAD_MSGS.length - 1);
+    $("loadingText").textContent = LOAD_MSGS[loadIdx];
+    $("loadBar").style.width = Math.min(4 + loadIdx * 15, 90) + "%";
+  }, 3800);
+  const t0 = performance.now();
+  clockTimer = setInterval(() => {
+    $("loadingClock").textContent = ((performance.now() - t0) / 1000).toFixed(1) + "s";
+  }, 100);
+}
+function stopLoading() {
+  clearInterval(loadTimer); clearInterval(clockTimer);
+  $("loadingPanel").classList.add("hidden");
+  $("loadBar").style.width = "0%";
+}
+
+/* ---------------- error rendering ---------------- */
+const ERR_META = {
+  400: { title: "400 — Invalid input", color: "amber",
+         body: "The backend rejected the request as malformed or structurally invalid. Check the hour table (all 24 rows numeric and non-negative), the battery values, and that at least one operator note is filled in.",
+         hint: "Fix the highlighted fields and run Optimize again." },
+  422: { title: "422 — Infeasible scenario", color: "red",
+         body: "The scenario is valid, but no feasible 24-hour schedule exists under the current constraints (e.g. a grid cap or reserve window that demand + solar + battery cannot satisfy).",
+         hint: "Try loosening a constraint: raise a max_grid_window limit, lower a minimum_battery_reserve, widen a no-charge/no-discharge window, or increase battery capacity or rates." },
+  500: { title: "500 — Backend error", color: "red",
+         body: "Something went wrong inside the optimization service (controlled error — no details leaked). This is usually transient.",
+         hint: "Retry in a moment. If it persists, check the backend logs or /health." },
+  net: { title: "Network error — backend unreachable", color: "red",
+         body: "The request never reached the optimization API (connection refused / DNS / CORS).",
+         hint: "Check the base URL field in the header — leave it empty to use the same origin — and verify GET /health." },
+  unexpected: { title: "Unexpected response", color: "amber",
+         body: "The backend returned an unrecognized status. The API contract may have changed.",
+         hint: "Retry, or inspect the raw response in the browser console." },
+};
+function showError(kind, extra) {
+  const m = ERR_META[kind] || ERR_META.unexpected;
+  const border = m.color === "red" ? "border-red-500/40" : "border-amber-500/40";
+  const text = m.color === "red" ? "text-red-400" : "text-amber-400";
+  $("errorPanel").innerHTML = `
+    <div class="bg-slate-900 border ${border} rounded-lg p-5 fade-in">
+      <div class="flex items-start gap-3">
+        <span class="text-xl leading-none mt-0.5">${m.color === "red" ? "⛔" : "⚠️"}</span>
+        <div class="flex-1">
+          <h3 class="font-semibold ${text}">${m.title}</h3>
+          <p class="mt-1 text-sm text-slate-300">${m.body}</p>
+          ${extra ? `<p class="mt-2 text-xs font-mono text-slate-500">${esc(extra)}</p>` : ""}
+          <p class="mt-2 text-xs text-slate-500">${m.hint}</p>
+          <div class="mt-3 flex gap-2">
+            <button id="retryBtn" class="border border-slate-600 hover:border-slate-400 text-slate-200 rounded px-3 py-1.5 text-xs font-semibold transition-colors">↻ Retry</button>
+            <button id="healthRetry" class="border border-slate-700 hover:border-emerald-500/60 text-slate-300 rounded px-3 py-1.5 text-xs transition-colors">Check /health</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  $("errorPanel").classList.remove("hidden");
+  $("emptyState").classList.add("hidden");
+  $("results").classList.add("hidden");
+  $("results").classList.remove("flex");
+  $("retryBtn").onclick = () => { if (lastCall) runOptimize(); };
+  $("healthRetry").onclick = checkHealth;
+  setStatus("ERROR — " + m.title, m.color === "red" ? "text-red-400" : "text-amber-400");
+}
+
+/* ---------------- health ---------------- */
+async function checkHealth() {
+  const el = $("healthState");
+  el.textContent = "…"; el.className = "text-slate-500 font-mono text-xs";
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const res = await fetch(apiBase() + "/health", { signal: ctrl.signal });
+    clearTimeout(t);
+    const body = await res.json().catch(() => ({}));
+    if (res.ok && body.status === "ok") {
+      el.textContent = "● ok"; el.className = "text-emerald-400 font-mono text-xs";
+    } else {
+      el.textContent = "● " + res.status; el.className = "text-red-400 font-mono text-xs";
+    }
+  } catch (e) {
+    clearTimeout(t);
+    el.textContent = "● unreachable"; el.className = "text-red-400 font-mono text-xs";
+  }
+}
+
+/* ---------------- optimize call ---------------- */
+async function runOptimize() {
+  if (inflight) return;
+  if (!validateAll()) return;
+  inflight = true;
+  dirty = false;
+  touched = true;
+  const btn = $("optimizeBtn");
+  btn.disabled = true;
+  btn.textContent = "⏳ Optimizing…";
+  $("emptyState").classList.add("hidden");
+  $("errorPanel").classList.add("hidden");
+  $("results").classList.add("hidden");
+  $("results").classList.remove("flex");
+  startLoading();
+  setStatus("DISPATCHED — " + nowStamp(), "text-amber-400");
+
+  const url = apiBase() + "/optimize-energy";
+  const body = buildPayload();
+  lastCall = { url, body };
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 30000);
+
+  const t0 = performance.now();
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timeout);
+    const ms = Math.round(performance.now() - t0);
+
+    if (!res.ok) {
+      let detail = "";
+      try { const j = await res.json(); detail = j.detail || JSON.stringify(j); } catch { /* no body */ }
+      if (res.status === 400) showError("400", detail);
+      else if (res.status === 422) showError("422", detail);
+      else if (res.status === 500) showError("500", detail);
+      else showError("unexpected", `HTTP ${res.status} · ${detail}`);
+      return;
+    }
+    const data = await res.json();
+    renderResults(data);
+    setStatus(`COMPLETE — ${ms} ms · cost ${fmt(data.total_cost_bdt, 0)} BDT · ${nowStamp()}`, "text-emerald-400");
+  } catch (e) {
+    clearTimeout(timeout);
+    if (e && e.name === "AbortError") {
+      showError("net", "Client abort: no response within 30 s. The endpoint may be down or a different host must be set in the base URL field.");
+    } else {
+      showError("net", String(e && e.message ? e.message : e));
+    }
+  } finally {
+    inflight = false;
+    stopLoading();
+    btn.disabled = false;
+    btn.textContent = "⚡ Optimize";
+  }
+}
+
+/* ---------------- result rendering ---------------- */
+const DIR_META = {
+  solar_reduction:         { icon: "☀", cls: "text-emerald-300 border-emerald-500/50 bg-emerald-500/10",      chip: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40" },
+  minimum_battery_reserve: { icon: "▮", cls: "text-sky-300 border-sky-500/50 bg-sky-500/10",                   chip: "bg-sky-500/15 text-sky-300 border-sky-500/40" },
+  no_charge_window:        { icon: "⤒", cls: "text-sky-300 border-sky-500/50 bg-sky-500/10",                   chip: "bg-sky-500/15 text-sky-300 border-sky-500/40" },
+  no_discharge_window:     { icon: "⤓", cls: "text-sky-300 border-sky-500/50 bg-sky-500/10",                   chip: "bg-sky-500/15 text-sky-300 border-sky-500/40" },
+  max_grid_window:         { icon: "▦", cls: "text-amber-300 border-amber-500/50 bg-amber-500/10",             chip: "bg-amber-500/15 text-amber-300 border-amber-500/40" },
+  no_op:                   { icon: "○", cls: "text-slate-500 border-slate-800 bg-slate-900/60",                chip: "bg-slate-800/60 text-slate-500 border-slate-700" },
+};
+
+function renderResults(data) {
+  $("errorPanel").classList.add("hidden");
+  $("emptyState").classList.add("hidden");
+  const res = $("results");
+  res.classList.remove("hidden");
+  res.classList.add("flex");
+
+  // KPIs
+  $("kpiCost").textContent = fmt(data.total_cost_bdt, 2);
+  $("kpiGrid").textContent = fmt(data.total_grid_kwh, 1);
+  $("kpiPeak").textContent = fmt(data.peak_grid_kwh, 1);
+  $("kpiSummary").textContent = data.plan_summary || "—";
+
+  // Directives
+  const dirWrap = $("directives");
+  dirWrap.innerHTML = "";
+  (data.directive_interpretation || []).forEach((d, i) => {
+    const meta = DIR_META[d.directive_type] || DIR_META.no_op;
+    const note = (data.operator_notes && data.operator_notes[d.note_index]) ||
+                 (lastCall ? lastCall.body.operator_notes[d.note_index] : "") || "";
+    const muted = d.directive_type === "no_op";
+    const el = document.createElement("div");
+    el.className = "rounded-lg border p-3 " + meta.cls;
+    el.innerHTML = `
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="font-mono text-[10px] text-slate-500">N${d.note_index ?? i}</span>
+        <span class="text-xs text-slate-300 flex-1 min-w-[200px] ${muted ? "text-slate-500 italic" : ""}">${esc(note)}</span>
+        <span class="text-slate-600">→</span>
+        <span class="font-mono text-[11px] px-2 py-0.5 rounded border ${meta.chip}">${esc(d.directive_type)}</span>
+        <span class="font-mono text-[10px] px-1.5 py-0.5 rounded border ${d.applies ? "border-emerald-500/40 text-emerald-400" : "border-slate-700 text-slate-500"}">${d.applies ? "applies" : "ignored"}</span>
+      </div>
+      ${d.structured_adjustment ? `<pre class="mt-2 text-[11px] font-mono bg-slate-950/70 border border-slate-800 rounded p-2 overflow-x-auto text-slate-400">${esc(JSON.stringify(d.structured_adjustment, null, 2))}</pre>` : ""}
+      <p class="mt-2 text-xs ${muted ? "text-slate-600" : "text-slate-400"}">${esc(d.explanation || "")}</p>`;
+    dirWrap.appendChild(el);
+  });
+  $("dirCount").textContent = `${(data.directive_interpretation || []).length} note(s) interpreted · scenario ${data.scenario_id}`;
+
+  // Chart data (exact API fields only)
+  const plan = data.hourly_plan || [];
+  const hoursAxis = plan.map((p) => String(p.hour).padStart(2, "0"));
+  const grid = plan.map((p) => p.grid_kwh);
+  const solar = plan.map((p) => p.solar_used_kwh);
+  const tariff = plan.map((p) => {
+    const row = lastCall.body.hours[p.hour];
+    return row ? row.tariff_bdt_per_kwh : null;
+  });
+
+  // hours affected by window directives (markers only for the four spec'd types)
+  const MARKED = ["solar_reduction", "no_charge_window", "no_discharge_window", "max_grid_window"];
+  const hourDirs = new Array(24).fill(null).map(() => []);
+  (data.directive_interpretation || []).forEach((d) => {
+    if (!d.applies || !d.structured_adjustment) return;
+    if (!MARKED.includes(d.directive_type)) return;
+    const hrs = d.structured_adjustment.hours || [];
+    hrs.forEach((h) => { if (hourDirs[h]) hourDirs[h].push(d.directive_type); });
+  });
+  const flags = plan.map((p) => (hourDirs[p.hour].length ? 1 : null));
+
+  renderEnergyChart(hoursAxis, solar, grid, tariff, flags, hourDirs);
+  renderBatteryCells(plan);
+  renderBatteryChart(hoursAxis, plan);
+  renderPlanTable(plan);
+
+  showTab("energy");
+}
+
+function renderEnergyChart(hoursAxis, solar, grid, tariff, flags, hourDirs) {
+  if (energyChart) energyChart.destroy();
+  const ctx = $("energyChart");
+  energyChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: hoursAxis,
+      datasets: [
+        { label: "Solar used (kWh)", data: solar, backgroundColor: EMERALD + "cc", stack: "s", order: 3, borderWidth: 0 },
+        { label: "Grid draw (kWh)", data: grid, backgroundColor: AMBER + "cc", stack: "s", order: 3, borderWidth: 0 },
+        { type: "line", label: "Tariff (BDT/kWh)", data: tariff, yAxisID: "y2", borderColor: "#fbbf24",
+          backgroundColor: "#fbbf24", borderWidth: 1.5, pointRadius: 1.5, tension: 0.3, order: 1 },
+        { type: "scatter", label: "Directive window", data: flags, yAxisID: "y2", order: 0,
+          pointStyle: "rectRot", radius: 4, hoverRadius: 5,
+          backgroundColor: hourDirs.map((a) => (a.includes("solar_reduction") ? EMERALD : a.includes("max_grid_window") ? AMBER : SKY)) },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 400 },
+      plugins: {
+        legend: { labels: { color: "#94a3b8", boxWidth: 10, font: { size: 10 } } },
+        tooltip: {
+          backgroundColor: "#020617", borderColor: "#1e293b", borderWidth: 1,
+          titleColor: "#e2e8f0", bodyColor: "#94a3b8", titleFont: { family: "monospace" }, bodyFont: { family: "monospace" },
+          callbacks: {
+            afterBody: (items) => {
+              const i = items[0].dataIndex;
+              const dirs = hourDirs[i] || [];
+              return dirs.length ? ["", ...dirs.map((d) => "⚑ " + d)] : [];
+            },
+          },
+        },
+      },
+      scales: {
+        x: { stacked: true, ticks: { color: "#64748b", font: { size: 9, family: "monospace" } }, grid: { color: "rgba(30,41,59,.5)" } },
+        y: { stacked: true, beginAtZero: true, ticks: { color: "#64748b", font: { size: 9, family: "monospace" } }, grid: { color: "rgba(30,41,59,.5)" }, title: { display: true, text: "kWh", color: "#475569", font: { size: 9 } } },
+        y2: { position: "right", beginAtZero: true, ticks: { color: "#b45309", font: { size: 9, family: "monospace" } }, grid: { drawOnChartArea: false }, title: { display: true, text: "BDT/kWh", color: "#b45309", font: { size: 9 } } },
+      },
+    },
+  });
+}
+
+function renderBatteryCells(plan) {
+  const wrap = $("batteryCells");
+  wrap.innerHTML = "";
+  const cls = { charge: "bg-sky-500/70 text-slate-950", discharge: "bg-sky-500/20 text-sky-300 border border-sky-500/50", idle: "bg-slate-800/70 text-slate-500" };
+  plan.forEach((p) => {
+    const b = document.createElement("button");
+    b.className = "w-8 h-10 rounded flex flex-col items-center justify-center font-mono text-[9px] hover:ring-1 hover:ring-sky-400/60 transition-all " + (cls[p.battery_action] || cls.idle);
+    b.title = `hour ${p.hour} · ${p.battery_action} · ${fmt(p.battery_kwh, 1)} kWh · after ${fmt(p.battery_energy_after_kwh, 1)} kWh`;
+    b.innerHTML = `<span>${String(p.hour).padStart(2, "0")}</span><span class="text-[8px] opacity-70">${p.battery_action === "charge" ? "↑" : p.battery_action === "discharge" ? "↓" : "·"}</span>`;
+    wrap.appendChild(b);
+  });
+}
+
+function renderBatteryChart(hoursAxis, plan) {
+  if (batteryChart) batteryChart.destroy();
+  const lvl = plan.map((p) => p.battery_energy_after_kwh);
+  const flow = plan.map((p) => (p.battery_action === "charge" ? p.battery_kwh : p.battery_action === "discharge" ? -p.battery_kwh : 0));
+  batteryChart = new Chart($("batteryChart"), {
+    type: "bar",
+    data: {
+      labels: hoursAxis,
+      datasets: [
+        { type: "line", label: "battery_energy_after_kwh", data: lvl, borderColor: SKY, backgroundColor: SKY + "22",
+          fill: true, stepped: true, borderWidth: 2, pointRadius: 1.5, tension: 0, order: 1, yAxisID: "y" },
+        { type: "bar", label: "charge / discharge (kWh)", data: flow, order: 2, borderWidth: 0,
+          backgroundColor: flow.map((v) => (v >= 0 ? SKY + "cc" : "#7dd3fc88")) },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
+      plugins: {
+        legend: { labels: { color: "#94a3b8", boxWidth: 10, font: { size: 10 } } },
+        tooltip: { backgroundColor: "#020617", borderColor: "#1e293b", borderWidth: 1, titleColor: "#e2e8f0", bodyColor: "#94a3b8",
+                   titleFont: { family: "monospace" }, bodyFont: { family: "monospace" } },
+      },
+      scales: {
+        x: { ticks: { color: "#64748b", font: { size: 9, family: "monospace" } }, grid: { color: "rgba(30,41,59,.5)" } },
+        y: { beginAtZero: true, ticks: { color: "#64748b", font: { size: 9, family: "monospace" } }, grid: { color: "rgba(30,41,59,.5)" }, title: { display: true, text: "kWh", color: "#475569", font: { size: 9 } } },
+      },
+    },
+  });
+}
+
+function renderPlanTable(plan) {
+  const tb = $("planBody");
+  tb.innerHTML = "";
+  const actionCls = { charge: "text-sky-300", discharge: "text-sky-400", idle: "text-slate-500" };
+  plan.forEach((p) => {
+    const tr = document.createElement("tr");
+    tr.className = "hover:bg-slate-800/40";
+    tr.innerHTML = `
+      <td class="py-1 px-3 text-slate-500">${String(p.hour).padStart(2, "0")}</td>
+      <td class="py-1 px-3 text-right text-amber-300">${fmt(p.grid_kwh, 1)}</td>
+      <td class="py-1 px-3 text-right text-emerald-300">${fmt(p.solar_used_kwh, 1)}</td>
+      <td class="py-1 px-3 ${actionCls[p.battery_action] || ""}">${esc(p.battery_action)}${p.battery_kwh ? ` (${fmt(p.battery_kwh, 1)})` : ""}</td>
+      <td class="py-1 px-3 text-right text-slate-400">${fmt(p.battery_kwh, 1)}</td>
+      <td class="py-1 px-3 text-right text-slate-300">${fmt(p.battery_energy_after_kwh, 1)}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+/* ---------------- tabs ---------------- */
+function showTab(name) {
+  document.querySelectorAll(".tabBtn").forEach((b) => {
+    const active = b.dataset.tab === name;
+    b.className = "tabBtn rounded px-3 py-1 text-xs font-semibold transition-colors " +
+      (active ? "border border-amber-500/60 bg-amber-500/10 text-amber-300" : "border border-slate-700 text-slate-400 hover:text-slate-200");
+  });
+  $("tab-energy").classList.toggle("hidden", name !== "energy");
+  $("tab-battery").classList.toggle("hidden", name !== "battery");
+  if (name === "energy" && energyChart) energyChart.resize();
+  if (name === "battery" && batteryChart) batteryChart.resize();
+}
+
+/* ---------------- example scenario ---------------- */
+function loadExample() {
+  $("scenarioId").value = EXAMPLE.scenario_id;
+  fillHours(EXAMPLE.hours.map((r) => ({ demand_kwh: r[1], solar_kwh: r[2], tariff_bdt_per_kwh: r[3] })));
+  const b = EXAMPLE.battery;
+  $("capacity").value = b.capacity_kwh;
+  $("initialEnergy").value = b.initial_energy_kwh;
+  $("minEnergy").value = b.minimum_energy_kwh;
+  $("maxCharge").value = b.max_charge_kwh_per_hour;
+  $("maxDischarge").value = b.max_discharge_kwh_per_hour;
+  while (notesCount > 1) removeNote();
+  const first = document.querySelector("#notesList .noteIn");
+  if (first) first.value = EXAMPLE.notes[0];
+  for (let i = 1; i < EXAMPLE.notes.length; i++) addNote(EXAMPLE.notes[i], false);
+  dirty = false;
+  touched = false;
+  validateAll();
+  $("scenarioId").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+/* ---------------- wire up ---------------- */
+buildHourRows();
+addNote("", false);
+validateAll();
+
+$("loadExample").addEventListener("click", loadExample);
+$("loadExample2").addEventListener("click", loadExample);
+$("clearTable").addEventListener("click", () => { clearHours(); dirty = true; touched = true; validateAll(); });
+$("optimizeBtn").addEventListener("click", runOptimize);
+$("healthBtn").addEventListener("click", checkHealth);
+$("addNote").addEventListener("click", () => addNote());
+$("removeNote").addEventListener("click", removeNote);
+$("scenarioId").addEventListener("input", onDirty);
+document.querySelectorAll("[data-bat]").forEach((i) => i.addEventListener("input", onDirty));
+$("baseUrl").addEventListener("change", () => { setStatus("Base URL changed → " + (apiBase() || "(same origin)")); });
+document.querySelectorAll(".tabBtn").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+
+// scanline flourish
+setInterval(() => {
+  const s = $("scanline");
+  s.style.opacity = "1";
+  s.style.transition = "none";
+  s.style.transform = "translateX(-100%)";
+  requestAnimationFrame(() => {
+    s.style.transition = "transform 2.2s linear";
+    s.style.transform = "translateX(400%)";
+    setTimeout(() => { s.style.opacity = "0"; }, 2300);
+  });
+}, 9000);
+</script>
+</body>
+</html>

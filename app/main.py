@@ -18,11 +18,12 @@ import hashlib
 import json
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import ValidationError
 
 from .fallback_interpreter import heuristic_interpret
@@ -255,6 +256,18 @@ def _plan_summary(
         f"battery charged in {charges} hour(s) and discharged in {discharges} hour(s) "
         f"to shift load away from expensive hours; total grid cost {total_cost:.2f} BDT."
     )
+
+
+# ---------------------------------------------------------------- frontend UI
+# Single-page dashboard served from app/static/ui.html (no build step).
+# Read at import time and cached; isolated from the optimization routes.
+_UI_HTML: bytes = (Path(__file__).parent / "static" / "ui.html").read_bytes()
+
+
+@app.get("/ui", include_in_schema=False)
+async def ui() -> HTMLResponse:
+    """Serve the GridWise control-room dashboard."""
+    return HTMLResponse(content=_UI_HTML, media_type="text/html")
 
 
 @app.get("/health")
