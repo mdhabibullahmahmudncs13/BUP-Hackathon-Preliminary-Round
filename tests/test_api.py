@@ -186,3 +186,11 @@ def test_end_to_end_with_real_pipeline_no_llm_key(client):
     assert resp.status_code == 200
     body = resp.json()
     assert len(body["hourly_plan"]) == 24
+
+
+def test_root_serves_dashboard(client):
+    """Landing page (/) serves the GridWise dashboard HTML."""
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert b"gridwise" in resp.content.lower() or b"GridWise" in resp.content

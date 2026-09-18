@@ -270,6 +270,12 @@ async def ui() -> HTMLResponse:
     return HTMLResponse(content=_UI_HTML, media_type="text/html")
 
 
+@app.get("/", include_in_schema=False)
+async def index() -> HTMLResponse:
+    """Landing page: same dashboard as /ui."""
+    return HTMLResponse(content=_UI_HTML, media_type="text/html")
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
