@@ -66,7 +66,7 @@ cp .env.example .env
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 # (or: python -m app)
 
-# 5. Health check
+# 5. Health check (adjust host if not running locally)
 curl http://localhost:8000/health
 # -> {"status":"ok"}
 
@@ -203,14 +203,16 @@ deps pinned in requirements.txt, no baked-in secrets; the API key is supplied at
 
 ## Deployment
 
+**Submitted endpoint: http://buphackathonpreliminary.mdhabibullahmahmud.work**
+(Azure VM, nginx reverse proxy → uvicorn, systemd-managed with `Restart=always`;
+`GET /` serves the live dashboard, `GET /health` the readiness probe, and
+`POST /optimize-energy` the judging endpoint — no authentication on any path.)
+
 Any platform that can run the container or `uvicorn` works (Render, Railway, Fly.io,
-a VPS). The submitted instance runs on an Azure VM behind nginx: `http://20.42.57.63`
-(`GET /health` + `POST /optimize-energy`, no authentication on the judging path,
-systemd-managed with `Restart=always`). Requirements met: publicly reachable base
-URL, `/health` ready within 60s of start, `POST /optimize-energy` completing well
-under the 30s timeout (the MILP solves in milliseconds; latency is dominated by the
-LLM round-trip, typically 2–10s, bounded by a 12s per-attempt provider timeout with
-deterministic fallback).
+a VPS). Requirements met: publicly reachable base URL, `/health` ready within 60s of
+start, `POST /optimize-energy` completing well under the 30s timeout (the MILP
+solves in milliseconds; latency is dominated by the LLM round-trip, typically 2–10s,
+bounded by a 12s per-attempt provider timeout with deterministic fallback).
 
 ## Dependencies & credits
 
