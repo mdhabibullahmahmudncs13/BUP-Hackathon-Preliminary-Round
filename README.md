@@ -170,23 +170,47 @@ cost exactly.
 
 ## Docker
 
+Build and run locally (works from a clean checkout, no registry needed):
+
 ```bash
 docker build -t gridwise-optimizer .
 docker run --rm -p 8000:8000 -e OPENROUTER_API_KEY=sk-or-v1-... gridwise-optimizer
 curl http://localhost:8000/health
 ```
 
-The image binds `0.0.0.0:8000`, runs as a non-root user, and contains no baked-in
-secrets. Publish it to Docker Hub/GHCR with an exact tag as the fallback execution
-path for organizers.
+Registry fallback image (GHCR):
+
+```bash
+# Exact reference (SHA tag, built by .github/workflows/docker-publish.yml):
+docker pull ghcr.io/mdhabibullahmahmudncs13/gridwise-optimizer:31bda0d925651e7287858f94a131d127e81c645e
+# or the moving tag:
+docker pull ghcr.io/mdhabibullahmahmudncs13/gridwise-optimizer:latest
+```
+
+The package is currently **private**; to pull it, either (a) be added as a collaborator
+under *Package settings → Manage access*, or (b) authenticate first with a GitHub
+token that has `read:packages`:
+
+```bash
+echo <TOKEN> | docker login ghcr.io -u <github-username> --password-stdin
+docker run --rm -p 8000:8000 ghcr.io/mdhabibullahmahmudncs13/gridwise-optimizer:latest
+```
+
+If registry access is not available, the `docker build` command above produces an
+identical image from the repository — the build is fully deterministic (runtime
+deps pinned in requirements.txt, no baked-in secrets; the API key is supplied at
+`docker run` time only). The image binds `0.0.0.0:8000` and runs as a non-root user.
 
 ## Deployment
 
 Any platform that can run the container or `uvicorn` works (Render, Railway, Fly.io,
-a VPS). Requirements: publicly reachable base URL, `/health` ready within 60s of
-start, `POST /optimize-energy` completing well under the 30s timeout (the MILP
-solves in milliseconds; latency is dominated by the LLM round-trip, typically 1–3s),
-and no authentication on the judging path.
+a VPS). The submitted instance runs on an Azure VM behind nginx: `http://20.42.57.63`
+(`GET /health` + `POST /optimize-energy`, no authentication on the judging path,
+systemd-managed with `Restart=always`). Requirements met: publicly reachable base
+URL, `/health` ready within 60s of start, `POST /optimize-energy` completing well
+under the 30s timeout (the MILP solves in milliseconds; latency is dominated by the
+LLM round-trip, typically 2–10s, bounded by a 12s per-attempt provider timeout with
+deterministic fallback).
 
 ## Dependencies & credits
 
