@@ -51,7 +51,7 @@ operator notes ──▶ LLM (OpenRouter, structured JSON output)
 
 ```bash
 # 1. Clone and enter the repo
-git clone <repo-url> && cd <repo-dir>
+git clone <https://github.com/mdhabibullahmahmudncs13/BUP-Hackathon-Preliminary-Round.git> && cd <repo-dir>
 
 # 2. Create a virtualenv (Python 3.12+) and install
 python -m venv .venv
