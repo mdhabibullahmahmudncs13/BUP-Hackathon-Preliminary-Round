@@ -1,0 +1,28 @@
+[project]
+name = "directive-optimizer"
+version = "0.1.0"
+description = "Two-endpoint microservice: LLM extracts battery directives from notes, PuLP LP optimizer builds a 24-hour schedule."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.5",
+    "httpx>=0.27",
+    "pulp>=2.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

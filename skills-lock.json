@@ -1,0 +1,251 @@
+{
+  "version": 1,
+  "skills": {
+    "create-agent-tui": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/create-agent-tui/SKILL.md",
+      "computedHash": "422ecebe81f06b3ff4c4e5ee5f4459da544e9f1cbdc1b0b69eb42c9150cc0ad2"
+    },
+    "create-headless-agent": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/create-headless-agent/SKILL.md",
+      "computedHash": "e6cb59cee25daa83a9410365c31d300bce1bd0b46b365e7c48f29f94b4fec48d"
+    },
+    "docker-ai-ml": {
+      "source": "full-stack-skills/docker-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-ai-ml/SKILL.md",
+      "computedHash": "650bb2e8a7c18f9798df77738e8247aac7ea8972eecfc82b6821b860d59136c0"
+    },
+    "docker-basics": {
+      "source": "full-stack-skills/docker-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-basics/SKILL.md",
+      "computedHash": "e1c155f23267a6c34658d032f48b9889ef28b27195a7ba47a0f1c84ed55b3ab7"
+    },
+    "docker-build": {
+      "source": "full-stack-skills/docker-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-build/SKILL.md",
+      "computedHash": "9b773410d62e9eb2719cee5fc236d672203c946e3ef042bb67fecb5c328cc2e4"
+    },
+    "docker-buildx": {
+      "source": "full-stack-skills/docker-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-buildx/SKILL.md",
+      "computedHash": "d5bcd802ab56dc6b11a45650b2c4ea1c29689580acde5f8c68d15d032f329625"
+    },
+    "docker-cicd": {
+      "source": "full-stack-skills/docker-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-cicd/SKILL.md",
+      "computedHash": "7bdbea5c44e63a75ef23de47c5ba1e70896abff456f2b63c558b1aa16cfa1551"
+    },
+    "docker-compose": {
+      "source": "full-stack-skills/docker-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-compose/SKILL.md",
+      "computedHash": "a2c57a9ef9b6b61ff97d934bf77e7888e01445b3b0e12901053568331ff0c4b1"
+    },
+    "docker-dockerfile": {
+      "source": "full-stack-skills/docker-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-dockerfile/SKILL.md",
+      "computedHash": "5d0e3e0c99ff50552138f98fd2d86b9b1b9352b7a727398e59c59ad3def0df1b"
+    },
+    "docker-hub": {
+      "source": "full-stack-skills/docker-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-hub/SKILL.md",
+      "computedHash": "4b4268f9a35b48f5b20f04734b665d042bf06437df78655518f76c9220bcdd97"
+    },
+    "docker-networking": {
+      "source": "full-stack-skills/docker-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-networking/SKILL.md",
+      "computedHash": "9ab0a9557ca8fe8b582ad34e6d0ba91ded966f461f36f0009f16a9a0df41b55b"
+    },
+    "docker-production": {
+      "source": "full-stack-skills/docker-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-production/SKILL.md",
+      "computedHash": "134156edae40644228e5b45535f8d67d1cc45c306e2203c0a53f87bfa3c1b3ec"
+    },
+    "docker-run": {
+      "source": "full-stack-skills/docker-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-run/SKILL.md",
+      "computedHash": "9ec2e3d856b333079e197ba97344e9002b7b231861ac7ac1feb53609240a1c9a"
+    },
+    "docker-scout": {
+      "source": "full-stack-skills/docker-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-scout/SKILL.md",
+      "computedHash": "3d9f9198dad343842371d1c2c847aa19ab764db761e6ad67ff9b43dfe259e93f"
+    },
+    "docker-security": {
+      "source": "full-stack-skills/docker-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-security/SKILL.md",
+      "computedHash": "ff0f56da72d65bf189e60d20198a07c52896bedcb2ce936f461da27a05fd18e7"
+    },
+    "docker-storage": {
+      "source": "full-stack-skills/docker-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-storage/SKILL.md",
+      "computedHash": "eb0d1bd6e3655f8baa2f8f8eca2e47cd452daf6e656a0334bd6f2ee1fe0ae1dd"
+    },
+    "docker-testcontainers": {
+      "source": "full-stack-skills/docker-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-testcontainers/SKILL.md",
+      "computedHash": "892dacae159ea30688c9b07ff0c53a5608ee747c6c06542e0bf72b51bc5b836b"
+    },
+    "docker-troubleshooting": {
+      "source": "full-stack-skills/docker-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-troubleshooting/SKILL.md",
+      "computedHash": "56d0072e7c80b67003af660f3fd8450f5ad9746765817e63cc665f492d6b45b1"
+    },
+    "hub-deploy": {
+      "source": "Hub-Host/skills",
+      "sourceType": "github",
+      "skillPath": "skills/hub-deploy/SKILL.md",
+      "computedHash": "d817c40b67453798409e1bd5442c1853001bccef0a62d272692dec7e096b8c8b"
+    },
+    "install-ori-harness": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/install-ori-harness/SKILL.md",
+      "computedHash": "159ab1321d19364f6bd676fe8d3a9832a68a6e24074445594ebccd2bdc4e58a2"
+    },
+    "open-responses": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "open-responses/SKILL.md",
+      "computedHash": "fde6c62120193b011c40cca23e3c719dd367c18fc1d1a715b7e699f7e44ca9fe"
+    },
+    "openrouter-agent-migration": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/openrouter-agent-migration/SKILL.md",
+      "computedHash": "0b08942afa921711215a35ed7b560f0c9dfedac948d7020c47b5154f753ac172"
+    },
+    "openrouter-analytics": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/openrouter-analytics/SKILL.md",
+      "computedHash": "85bdc5fe562d0ea0c70bbcdefe30e6dbefe0ab860de2286bd61a1e52682181b6"
+    },
+    "openrouter-analytics-query": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/openrouter-analytics-query/SKILL.md",
+      "computedHash": "ae33ef43e066c751eb000e4d3059f658fd3d9d3480ae5924cdb7fa78f4bbef14"
+    },
+    "openrouter-analytics-schema": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/openrouter-analytics-schema/SKILL.md",
+      "computedHash": "291eb0ce8939b960bdd6a0db47cf8a8982e2fb791a2a1affaec96f844b20f372"
+    },
+    "openrouter-benchmarks": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/openrouter-benchmarks/SKILL.md",
+      "computedHash": "6f5869f21807048abd149789347c3e540024c9c483592df2461aa5b7eda77e93"
+    },
+    "openrouter-generations": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/openrouter-generations/SKILL.md",
+      "computedHash": "53e96cc8dd6b93dcecef378b5d6e3823ca1896006dcd0e134a8ab44b79cd30df"
+    },
+    "openrouter-images": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/openrouter-images/SKILL.md",
+      "computedHash": "6c78fd1f6e787ba5a977d9ca8609ec545a5a7065ac071957e78d0a3ba834a773"
+    },
+    "openrouter-models": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/openrouter-models/SKILL.md",
+      "computedHash": "d1ef33877a30b9b22c0f1a2cedd54f795c9459ae70d8bb66978feba526549fc4"
+    },
+    "openrouter-oauth": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/openrouter-oauth/SKILL.md",
+      "computedHash": "7dc098e3c66b13c1f0f89df40c8991a0c93cf7ec8139963628ee1c55d3e72ff3"
+    },
+    "openrouter-stt": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/openrouter-stt/SKILL.md",
+      "computedHash": "33017d6f04b0a8ed32e604c3e3162d7770550ade4aaea9f7fe53e030c0fd1907"
+    },
+    "openrouter-tts": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/openrouter-tts/SKILL.md",
+      "computedHash": "b23a0d6997e2d2743858ce8f41cd81f8931f3e3984661b23d3a2c9125b9e5dcf"
+    },
+    "openrouter-typescript-sdk": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/openrouter-typescript-sdk/SKILL.md",
+      "computedHash": "444920e33326e4af1e7a0062c8843ea8c111ba3cfa3d1b2e028aed34ebaac347"
+    },
+    "openrouter-video": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/openrouter-video/SKILL.md",
+      "computedHash": "ca1a65aeb1cb30b4d3a96a698a3eff1ad8c1819396469631a1ef5767bd6f0f54"
+    },
+    "ponytail": {
+      "source": "DietrichGebert/ponytail",
+      "sourceType": "github",
+      "skillPath": "skills/ponytail/SKILL.md",
+      "computedHash": "210fa0831f649ce9f8a305f7b7c8cf2a0dd09ac4dd53067109941b96e7811d4e"
+    },
+    "ponytail-audit": {
+      "source": "DietrichGebert/ponytail",
+      "sourceType": "github",
+      "skillPath": "skills/ponytail-audit/SKILL.md",
+      "computedHash": "8b8d72e6ff70b65b6c9518d470fcf29dc696eea93d28f3efa10fdcc60cbd696d"
+    },
+    "ponytail-debt": {
+      "source": "DietrichGebert/ponytail",
+      "sourceType": "github",
+      "skillPath": "skills/ponytail-debt/SKILL.md",
+      "computedHash": "0099b82174e3a4261828b4ec04d2c068b1b294fdab14f76701c2acd1f7c99539"
+    },
+    "ponytail-gain": {
+      "source": "DietrichGebert/ponytail",
+      "sourceType": "github",
+      "skillPath": "skills/ponytail-gain/SKILL.md",
+      "computedHash": "c45ecba7906960eea904218b623abf097ebff84ecbacca6d68da1d0687435f75"
+    },
+    "ponytail-help": {
+      "source": "DietrichGebert/ponytail",
+      "sourceType": "github",
+      "skillPath": "skills/ponytail-help/SKILL.md",
+      "computedHash": "10e8382b1033c9a0fec0073de6d3de3846b4f5dca7d78b6df2d476a1f4cd43c6"
+    },
+    "ponytail-review": {
+      "source": "DietrichGebert/ponytail",
+      "sourceType": "github",
+      "skillPath": "skills/ponytail-review/SKILL.md",
+      "computedHash": "4646594fcd75455533f7ff1425f4f1c5ba0fa65f88241bf262b1c4fc275f049a"
+    },
+    "spawn-ori-eval": {
+      "source": "OpenRouterTeam/skills",
+      "sourceType": "github",
+      "skillPath": "skills/spawn-ori-eval/SKILL.md",
+      "computedHash": "ed90d45540bbc558b687bf0896552a6220594a4849b2a062ccbd6666c001fbb0"
+    }
+  }
+}
