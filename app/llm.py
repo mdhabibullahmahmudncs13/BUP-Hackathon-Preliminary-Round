@@ -178,10 +178,14 @@ async def interpret_notes(
             "model": attempt_model,
             "messages": messages,
             "temperature": 0.0,
+            "max_tokens": 600,  # interpretations are short; caps runaway generations
             "response_format": RESPONSE_FORMAT,
         }
         try:
-            resp = await client.post(OPENROUTER_URL, json=payload, headers=headers, timeout=25.0)
+            # Per-attempt timeout keeps the worst case (both models) comfortably
+            # under the judge's 30s budget: slow provider -> deterministic
+            # fallback instead of a timed-out case.
+            resp = await client.post(OPENROUTER_URL, json=payload, headers=headers, timeout=12.0)
             resp.raise_for_status()
             content = _extract_content(resp.json())
             data = _extract_json(content)
