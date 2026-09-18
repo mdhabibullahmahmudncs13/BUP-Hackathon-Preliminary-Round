@@ -1,104 +1,139 @@
-# GridWise — LLM-Assisted Campus Energy Optimization
+<h1 align="center">⚡ GridWise</h1>
 
-**BUP CSE FEST 2026 · Hackathon · Online Preliminary**
+<p align="center">
+  <strong>LLM-Assisted Campus Energy Optimization</strong><br>
+  <sub>BUP CSE FEST 2026 · Hackathon · Online Preliminary Round</sub>
+</p>
 
-One HTTP service with two endpoints:
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.12%2B-blue?logo=python&logoColor=white" alt="Python 3.12+">
+  <img src="https://img.shields.io/badge/FastAPI-0.115%2B-009688?logo=fastapi&logoColor=white" alt="FastAPI">
+  <img src="https://img.shields.io/badge/solver-PuLP%20%2B%20CBC-9B5DE5" alt="PuLP + CBC">
+  <img src="https://img.shields.io/badge/tests-82%20passed-brightgreen?logo=pytest&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/public%20samples-10%2F10%20optimal-success" alt="Samples">
+</p>
 
-1. **`POST /optimize-energy`** — receives a 24-hour campus energy scenario plus 1–3
-   natural-language operator notes, interprets the notes with an **LLM**, converts them
-   into validated structured directives, applies them to a **MILP optimizer**, and returns
-   the machine-checkable interpretation plus the cost-minimal 24-hour schedule.
-2. **`GET /health`** — readiness probe returning `{"status": "ok"}`.
+<p align="center">
+  🌐 <a href="http://buphackathonpreliminary.mdhabibullahmahmud.work"><strong>Live dashboard</strong></a>
+  ·
+  <a href="http://buphackathonpreliminary.mdhabibullahmahmud.work/docs"><strong>API docs</strong></a>
+  ·
+  🧪 <code>POST /optimize-energy</code> · <code>GET /health</code>
+</p>
 
-## Architecture
+---
 
+## 🎯 What it does
+
+One HTTP service that turns **plain-language operator notes** into an **optimal 24-hour
+campus energy schedule**:
+
+> *"Solar output will drop to about 20% from 1 PM to 3 PM."*
+> *"The cafeteria menu changes tomorrow."*
+
+1. 🔍 An **LLM** reads the notes and proposes structured directives (and flags distractors as `no_op`)
+2. 🛡️ **Deterministic guardrails** validate every proposal — malformed output is never invented around
+3. 📐 An **MILP optimizer** minimizes grid electricity cost under battery & energy physics
+4. ✅ A **replay validator** re-checks the plan exactly like the judge before responding
+
+**Pipeline:** `POST /optimize-energy` → *(interpretation + machine-checkable schedule)* in one JSON response.
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart TD
+    A["📝 Operator notes (1–3, natural language)<br/>+ 24-hour scenario JSON"] --> B
+
+    B["🧠 LLM interpretation<br/><i>OpenRouter · Llama 3.3 70B (json_schema output)</i>"] --> C
+
+    C{"🛡️ Deterministic guardrails<br/><i>pydantic: types, hours 0–23 unique & ascending,<br/>factor/reserve/cap ranges, applies semantics</i>"}
+    C -- "malformed entry" --> F["🔧 Heuristic fallback parser<br/><i>per-note, never invents directives</i>"] --> D
+    C -- "valid" --> D
+
+    D["📐 Time-window normalization<br/><i>end-exclusive convention, deterministic cross-check</i>"]
+
+    E["🧮 MILP optimizer — PuLP + CBC<br/><i>energy balance · effective solar · battery continuity,<br/>bounds & rates · end-of-day neutrality · 5 directive types</i>"]
+
+    D --> E
+    F --> E
+
+    E --> G["✅ Replay validator<br/><i>judge-identical checks + recalculated totals</i>"]
+    G --> H["📤 200 OK — interpretation + optimal 24-hour plan<br/><i>400 malformed · 422 infeasible · 500 controlled</i>"]
 ```
-operator notes ──▶ LLM (OpenRouter, structured JSON output)
-                      │  untrusted structured data
-                      ▼
-              deterministic guardrails (pydantic: type whitelist, hours 0-23
-              ascending & unique, factor/reserve/cap ranges, applies semantics,
-              exact adjustment shapes; malformed output -> deterministic
-              heuristic fallback, never invented directives)
-                      │  validated directives
-                      ▼
-              MILP optimizer (PuLP + CBC): energy balance, effective solar,
-              battery continuity/bounds/rates, end-of-day neutrality,
-              solar_reduction / minimum_battery_reserve / no_charge_window /
-              no_discharge_window / max_grid_window
-                      │  24-hour plan
-                      ▼
-              replay validator (judge-identical checks) + recalculated totals
-                      │
-                      ▼
-              POST /optimize-energy response (interpretation + schedule)
-```
 
-- **LLM role**: `meta-llama/llama-3.3-70b-instruct` via OpenRouter (configurable),
-  with same-provider fallback `meta-llama/llama-3.1-70b-instruct`. The model is part
-  of the interpretation path that produces the optimization constraints (mandated by
-  the problem statement).
-- **Deterministic postprocessing**: time windows from the LLM are normalized by an
-  independent parser (end-exclusive convention), and any malformed LLM entry is
-  replaced by the heuristic interpreter's output for that note — the service never
-  crashes or invents an unsupported directive type.
-- **Optimizer/solver**: mixed-integer linear program solved with CBC via PuLP.
-  One global 24-hour model (not greedy) so battery continuity and end-of-day
-  neutrality hold exactly. If an interpretation is provably infeasible, directives
-  are progressively relaxed so a valid GridWise plan is still returned.
+**Design guarantees**
 
-## Local quickstart (clean environment)
+| Guarantee | How |
+| --- | --- |
+| 🧠 LLM is mandatory in the interpretation path | The model's structured output produces the optimizer constraints |
+| 🛡️ Invalid LLM output can't corrupt the schedule | Strict schemas; per-note fallback; unsupported types never invented |
+| 🕐 Window convention is exact | LLM hours are cross-checked by an independent parser (end-exclusive: *1 PM → 3 PM* = `[13, 14]`) |
+| 🧮 Global optimality | One 24-hour MILP (not greedy) → battery continuity & end-of-day neutrality hold by construction |
+| 🔄 Never fails a case | Progressive relaxation ladder returns a *valid* plan even under contradictory interpretations |
+| 🔁 Fast on retries | Identical requests are served from an in-process cache (~ms) |
+
+## 🚀 Local quickstart
 
 ```bash
-# 1. Clone and enter the repo
-git clone https://github.com/mdhabibullahmahmudncs13/BUP-Hackathon-Preliminary-Round.git && cd BUP-Hackathon-Preliminary-Round
+# 1️⃣ Clone & enter
+git clone https://github.com/mdhabibullahmahmudncs13/BUP-Hackathon-Preliminary-Round.git
+cd BUP-Hackathon-Preliminary-Round
 
-# 2. Create a virtualenv (Python 3.12+) and install
-python -m venv .venv
-source .venv/bin/activate
+# 2️⃣ Install (Python 3.12+)
+python -m venv .venv && source .venv/bin/activate
 pip install .
 
-# 3. Configure the LLM provider
-cp .env.example .env
-# edit .env and set OPENROUTER_API_KEY=sk-or-v1-...
+# 3️⃣ Configure (optional — see "No API key?" below)
+cp .env.example .env          # set OPENROUTER_API_KEY=sk-or-v1-...
 
-# 4. Start the service
+# 4️⃣ Run
 uvicorn app.main:app --host 0.0.0.0 --port 8000
-# (or: python -m app)
 
-# 5. Health check (adjust host if not running locally)
-curl http://localhost:8000/health
-# -> {"status":"ok"}
+# 5️⃣ Verify
+curl http://localhost:8000/health                     # -> {"status":"ok"}
 
-# 6. Run one public sample case against the live service
-.venv/bin/python scripts/validate_samples.py http://localhost:8000
-# -> 10/10 cases passed
+# 6️⃣ Replay the organizer's public sample pack
+python scripts/validate_samples.py http://localhost:8000
+# -> 10/10 cases passed, costs equal to the reference optimum
 ```
 
-Without `OPENROUTER_API_KEY` the service still works end to end using the
-deterministic heuristic interpreter (clearly flagged in the response explanations),
-so the optimizer and API can be tested without any provider credentials.
+> 💡 **No API key?** The service still runs end-to-end using the deterministic
+> heuristic interpreter (clearly flagged in response `explanation` fields) —
+> the optimizer and full API contract work without any provider credentials.
 
-## Environment variables
-
-| Name | Required | Default | Purpose |
-| --- | --- | --- | --- |
-| `OPENROUTER_API_KEY` | yes (for LLM path) | — | OpenRouter API key; service runs without it via the deterministic fallback |
-| `OPENROUTER_MODEL` | no | `meta-llama/llama-3.3-70b-instruct` | Primary interpretation model |
-| `OPENROUTER_FALLBACK_MODEL` | no | `meta-llama/llama-3.1-70b-instruct` | Same-provider fallback model |
-
-Secrets are loaded from `.env` (gitignored). No keys are committed, logged, or
-returned in responses; stack traces are never exposed to clients.
-
-## API examples
-
-Health:
+<details>
+<summary><b>🐳 Docker instead</b></summary>
 
 ```bash
-curl http://localhost:8000/health
+docker build -t gridwise-optimizer .
+docker run --rm -p 8000:8000 -e OPENROUTER_API_KEY=sk-or-v1-... gridwise-optimizer
 ```
 
-Optimize (abridged scenario):
+Registry fallback image (GHCR, exact SHA tag built by CI):
+
+```bash
+docker pull ghcr.io/mdhabibullahmahmudncs13/gridwise-optimizer:31bda0d925651e7287858f94a131d127e81c645e
+```
+
+The package is currently **private** — pull it after being added as a package
+collaborator, or after `docker login ghcr.io` with a `read:packages` token.
+Building locally from the repo produces an identical image (deps pinned in
+`requirements.txt`, no baked-in secrets, non-root user, binds `0.0.0.0:8000`).
+
+</details>
+
+## 🔑 Environment variables
+
+| Name | Required | Default | Purpose |
+| --- | :---: | --- | --- |
+| `OPENROUTER_API_KEY` | for the LLM path | — | OpenRouter key; without it the deterministic fallback serves every request |
+| `OPENROUTER_MODEL` | — | `meta-llama/llama-3.3-70b-instruct` | Primary interpretation model |
+| `OPENROUTER_FALLBACK_MODEL` | — | `meta-llama/llama-3.1-70b-instruct` | Same-provider fallback (rate limits / outages) |
+
+🔒 Secrets load from `.env` (gitignored). No keys are committed, logged, or echoed in
+responses; stack traces never reach clients.
+
+## 📡 API example
 
 ```bash
 curl -X POST http://localhost:8000/optimize-energy \
@@ -120,116 +155,118 @@ curl -X POST http://localhost:8000/optimize-energy \
   }'
 ```
 
-Response (abridged):
+<details>
+<summary><b>📤 Example response (abridged)</b></summary>
 
 ```json
 {
   "scenario_id": "GRID-101",
   "directive_interpretation": [
     {
-      "note_index": 0, "applies": true,
+      "note_index": 0,
+      "applies": true,
       "directive_type": "solar_reduction",
-      "structured_adjustment": {"hours": [13, 14], "factor": 0.2},
+      "structured_adjustment": { "hours": [13, 14], "factor": 0.2 },
       "explanation": "Solar availability is reduced during panel cleaning."
     },
     {
-      "note_index": 1, "applies": false,
+      "note_index": 1,
+      "applies": false,
       "directive_type": "no_op",
       "structured_adjustment": null,
       "explanation": "This note does not affect today's energy schedule."
     }
   ],
   "hourly_plan": [
-    {"hour": 0, "grid_kwh": 180.0, "solar_used_kwh": 0.0, "battery_action": "idle",
-     "battery_kwh": 0.0, "battery_energy_after_kwh": 200.0}
+    {
+      "hour": 0, "grid_kwh": 180.0, "solar_used_kwh": 0.0,
+      "battery_action": "idle", "battery_kwh": 0.0,
+      "battery_energy_after_kwh": 200.0
+    }
   ],
-  "total_grid_kwh": 0.0, "total_cost_bdt": 0.0, "peak_grid_kwh": 0.0,
+  "total_grid_kwh": 0.0,
+  "total_cost_bdt": 0.0,
+  "peak_grid_kwh": 0.0,
   "plan_summary": "Applied 1 operator directive(s) (solar_reduction); ..."
 }
 ```
 
-Error codes: `400` malformed/structurally invalid JSON, `422` valid JSON whose
-optimization is infeasible, `500` controlled internal error (no stack traces).
-Malformed LLM output never surfaces as an error — it degrades to the deterministic
-fallback interpreter per note.
+</details>
 
-## Testing
+**Status codes:** `200` success · `400` malformed/invalid JSON · `422` valid JSON but
+infeasible optimization · `500` controlled internal error. Malformed LLM output never
+surfaces as an error — it degrades to the fallback interpreter per note.
+
+## 🧪 Testing
 
 ```bash
 pip install .[dev]
-pytest                       # 80+ tests: guardrails, MILP, validator, API, sample pack
-RUN_LIVE_LLM=1 pytest tests/test_live_llm.py   # optional: real OpenRouter round-trip
-.venv/bin/python scripts/validate_samples.py   # public pack against a running service
+pytest                                          # 80+ tests: guardrails · MILP · validator · API · sample pack
+RUN_LIVE_LLM=1 pytest tests/test_live_llm.py    # optional: real OpenRouter round-trip
+python scripts/validate_samples.py <base_url>   # public pack against any running instance
 ```
 
-`tests/test_samples.py` replays all 10 organizer public cases through the full API
-with the deterministic interpreter and validates them judge-style (interpretation
-ground truth, directive application, energy balance, battery rules, neutrality,
-recalculated totals, cost vs reference). All 10 cases match the reference optimal
-cost exactly.
+`tests/test_samples.py` replays all 10 organizer public cases judge-style:
+interpretation ground truth, directive application, energy balance, battery rules,
+neutrality, and recalculated totals.
 
-## Docker
+### 📊 Public sample pack — results (deployed service)
 
-Build and run locally (works from a clean checkout, no registry needed):
+| Case | Scenario | Interpretation | Cost (BDT) | vs reference |
+| --- | --- | :---: | ---: | :---: |
+| SAMPLE-01 | Solar cleaning + distractor | ✅ | 38,365 | **exact** |
+| SAMPLE-02 | Battery charging maintenance | ✅ | 42,885 | **exact** |
+| SAMPLE-03 | Emergency reserve (% of capacity) | ✅ | 35,480 | **exact** |
+| SAMPLE-04 | No-discharge protection | ✅ | 40,495 | **exact** |
+| SAMPLE-05 | Feeder grid cap | ✅ | 33,950 | **exact** |
+| SAMPLE-06 | Reduction + no-charge + distractor | ✅ | 34,090 | **exact** |
+| SAMPLE-07 | Reserve + transformer cap | ✅ | 38,550 | **exact** |
+| SAMPLE-08 | Charge/discharge outages | ✅ | 37,665 | **exact** |
+| SAMPLE-09 | Reduction wording normalization | ✅ | 34,873 | **exact** |
+| SAMPLE-10 | Multi-constraint evening | ✅ | 41,620 | **exact** |
 
-```bash
-docker build -t gridwise-optimizer .
-docker run --rm -p 8000:8000 -e OPENROUTER_API_KEY=sk-or-v1-... gridwise-optimizer
-curl http://localhost:8000/health
+**10/10 interpretations correct · 10/10 costs equal to the organizer's optimal reference.**
+
+## 🌍 Deployment
+
+**Submitted endpoint → `http://buphackathonpreliminary.mdhabibullahmahmud.work`**
+
+```
+Azure VM ── nginx :80 ──▶ uvicorn (systemd, Restart=always, 2 workers)
+   ├── GET  /                 live dashboard
+   ├── GET  /health           readiness probe
+   └── POST /optimize-energy  judging endpoint (no auth anywhere)
 ```
 
-Registry fallback image (GHCR):
+- ⏱️ `/health` ready in seconds (limit: 60s) · `p95` ≈ 5–10 s (limit: 30s)
+- 🧮 MILP solves in milliseconds — latency is LLM round-trip, bounded by a 12 s
+  per-attempt provider timeout with deterministic fallback
+- 📄 Any platform works: Render, Railway, Fly.io, a plain VPS, or the Docker image
 
-```bash
-# Exact reference (SHA tag, built by .github/workflows/docker-publish.yml):
-docker pull ghcr.io/mdhabibullahmahmudncs13/gridwise-optimizer:31bda0d925651e7287858f94a131d127e81c645e
-# or the moving tag:
-docker pull ghcr.io/mdhabibullahmahmudncs13/gridwise-optimizer:latest
-```
+## 🧰 Tech stack & credits
 
-The package is currently **private**; to pull it, either (a) be added as a collaborator
-under *Package settings → Manage access*, or (b) authenticate first with a GitHub
-token that has `read:packages`:
+| Layer | Tool |
+| --- | --- |
+| HTTP API | [FastAPI](https://fastapi.tiangolo.com/) + [Uvicorn](https://www.uvicorn.org/) |
+| Schemas & guardrails | [Pydantic v2](https://docs.pydantic.dev/) |
+| Optimization | [PuLP](https://github.com/coin-or/pulp) + CBC solver |
+| LLM provider | [OpenRouter](https://openrouter.ai/) · Meta Llama 3.3 / 3.1 70B |
+| HTTP client | [httpx](https://www.python-httpx.org/) |
 
-```bash
-echo <TOKEN> | docker login ghcr.io -u <github-username> --password-stdin
-docker run --rm -p 8000:8000 ghcr.io/mdhabibullahmahmudncs13/gridwise-optimizer:latest
-```
+> AI coding assistance was used for implementation. The architecture
+> (LLM → guardrails → MILP → replay validation) and all logic are the team's own work.
 
-If registry access is not available, the `docker build` command above produces an
-identical image from the repository — the build is fully deterministic (runtime
-deps pinned in requirements.txt, no baked-in secrets; the API key is supplied at
-`docker run` time only). The image binds `0.0.0.0:8000` and runs as a non-root user.
+## ⚠️ Known limitations
 
-## Deployment
+- The heuristic fallback covers common phrasings of the five directive types; heavily
+  paraphrased notes may degrade to `no_op` when the LLM is unavailable.
+- The infeasibility-relaxation ladder prefers returning a *valid* plan over failing when
+  interpreted directives are contradictory (organizer scenarios are guaranteed feasible —
+  this only guards against our own interpretation errors).
+- Battery round-trip efficiency is 1.0 (no loss model is defined in the problem statement).
 
-**Submitted endpoint: http://buphackathonpreliminary.mdhabibullahmahmud.work**
-(Azure VM, nginx reverse proxy → uvicorn, systemd-managed with `Restart=always`;
-`GET /` serves the live dashboard, `GET /health` the readiness probe, and
-`POST /optimize-energy` the judging endpoint — no authentication on any path.)
+---
 
-Any platform that can run the container or `uvicorn` works (Render, Railway, Fly.io,
-a VPS). Requirements met: publicly reachable base URL, `/health` ready within 60s of
-start, `POST /optimize-energy` completing well under the 30s timeout (the MILP
-solves in milliseconds; latency is dominated by the LLM round-trip, typically 2–10s,
-bounded by a 12s per-attempt provider timeout with deterministic fallback).
-
-## Dependencies & credits
-
-- [FastAPI](https://fastapi.tiangolo.com/) + Uvicorn — HTTP API
-- [Pydantic v2](https://docs.pydantic.dev/) — schemas and deterministic guardrails
-- [PuLP](https://github.com/coin-or/pulp) (CBC solver) — MILP optimization
-- [httpx](https://www.python-httpx.org/) — OpenRouter API client
-- [OpenRouter](https://openrouter.ai/) — LLM provider (Meta Llama 3.3/3.1 70B)
-- AI coding assistance was used for implementation; the architecture
-  (LLM → guardrails → MILP → replay validation) and all logic are the team's work.
-
-## Known limitations
-
-- The heuristic fallback covers the common phrasings of the five directive types;
-  heavily paraphrased notes may degrade to `no_op` when the LLM is unavailable.
-- The infeasibility-relaxation ladder prefers returning a valid plan over failing
-  when the interpreted directives are contradictory (organizer ground truth is
-  guaranteed feasible, so this only guards against our own interpretation errors).
-- Battery round-trip efficiency is 1.0 (as specified — no loss model is defined in
-  the problem statement).
+<p align="center">
+  <sub>Built for the BUP CSE FEST 2026 Online Preliminary · ⚡ GridWise team</sub>
+</p>
