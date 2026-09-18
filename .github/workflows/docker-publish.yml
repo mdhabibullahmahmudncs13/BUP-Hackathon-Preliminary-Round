@@ -1,13 +1,12 @@
-"""Build and push the GridWise Docker fallback image to GHCR.
-
-Triggered manually (workflow_dispatch) or on pushes that touch the Dockerfile.
-Uses the repo's built-in GITHUB_TOKEN (permissions: packages: write), so no
-local registry credentials are needed.
-
-Image: ghcr.io/mdhabibullahmahmudncs13/gridwise-optimizer
-Tags: 'latest' plus the triggering git SHA (exact, immutable reference for
-the submission form).
-"""
+# Build and push the GridWise Docker fallback image to GHCR.
+#
+# Triggered manually (workflow_dispatch) or on pushes that touch the Dockerfile.
+# Uses the repo's built-in GITHUB_TOKEN (permissions: packages: write), so no
+# local registry credentials are needed.
+#
+# Image: ghcr.io/mdhabibullahmahmudncs13/gridwise-optimizer
+# Tags: 'latest' plus the triggering git SHA (exact, immutable reference for
+# the submission form).
 
 name: docker-publish
 
