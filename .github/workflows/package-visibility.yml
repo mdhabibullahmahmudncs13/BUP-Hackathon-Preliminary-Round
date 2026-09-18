@@ -23,7 +23,7 @@ jobs:
             https://api.github.com/user/packages/container/gridwise-optimizer \
             | python3 -c "import json,sys; p=json.load(sys.stdin); print('visibility:', p.get('visibility'), '| name:', p.get('name'))"
 
-      - name: Force visibility to public
+      - name: Force visibility to public (non-fatal; UI change may already apply)
         run: |
           CODE=$(curl -s -o /tmp/vis.out -w "%{http_code}" \
             -X PATCH \
@@ -31,8 +31,7 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/user/packages/container/gridwise-optimizer \
             -d '{"visibility":"public"}')
-          echo "PATCH status: $CODE"; cat /tmp/vis.out
-          test "$CODE" = "200" || test "$CODE" = "204"
+          echo "PATCH status: $CODE (404 expected for repo tokens; UI change may have applied)"; cat /tmp/vis.out || true
 
       - name: Prove anonymous docker pull works
         run: |
