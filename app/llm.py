@@ -1,127 +1,194 @@
-"""OpenRouter LLM client: maps free-text notes to validated directives.
+"""OpenRouter LLM client: maps operator notes to directive interpretations.
 
-- Structured output via ``response_format`` (JSON schema), with a strict
-  JSON-only prompt as fallback for models that don't support it.
-- One same-provider fallback model, matching the rubric's "team responsible
-  for provider availability" requirement.
-- Never invents data: any invalid/malformed LLM output raises and is reported
-  as a guardrail rejection, not silently coerced.
+- Structured output via ``response_format`` (JSON schema) with a strict
+  JSON-only prompt fallback for models that don't support it.
+- One same-provider fallback model (rubric: team owns provider availability).
+- Output is treated as untrusted data: the pipeline re-validates every entry
+  against the pydantic guardrail models before it reaches the optimizer.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 import httpx
-
-from .models import Directive, DirectiveType, InterpretationResponse
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 DEFAULT_MODEL = "meta-llama/llama-3.3-70b-instruct"
 FALLBACK_MODEL = "meta-llama/llama-3.1-70b-instruct"  # same provider, fallback path
 
-SYSTEM_PROMPT = """You convert operator notes into battery-schedule directives.
+SYSTEM_PROMPT = """You interpret campus operator notes for a 24-hour energy scheduler.
+Hours are indexed 0..23 (hour 0 = midnight, 13 = 1 PM). Time windows are
+start-inclusive and end-exclusive: "from 1 PM to 3 PM" or "between 1 PM and 3 PM"
+or "from 13:00 until 15:00" all mean hours [13, 14]. "from 6 PM until 9 PM"
+means [18, 19, 20].
 
-Return ONLY a JSON object with key "directives": a list of directive objects.
-Each directive has a "directive_type" chosen from exactly these six types:
-- fix_price: {"directive_type": "fix_price", "hours": [int 0-23 ascending, unique, non-empty], "price": float}
-- fix_charge: {"directive_type": "fix_charge", "hours": [...], "factor": float 0.0-1.0}
-- fix_discharge: {"directive_type": "fix_discharge", "hours": [...], "factor": float 0.0-1.0}
-- cap_charge: {"directive_type": "cap_charge", "hardcoded": false, "hours": [...], "factor": float 0.0-1.0}
-- cap_discharge: {"directive_type": "cap_discharge", "hours": [...], "factor": float 0.0-1.0}
-- no_op: {"directive_type": "no_op"}
+For EACH note, return exactly one object with these keys:
+- "note_index": the zero-based index of the note.
+- "applies": true if the note changes the energy schedule, false otherwise.
+- "directive_type": one of "solar_reduction", "minimum_battery_reserve",
+  "no_charge_window", "no_discharge_window", "max_grid_window", "no_op".
+- "structured_adjustment": for the matching type, else null.
+- "explanation": one short sentence.
+
+Directive shapes (use EXACTLY these keys):
+- solar_reduction: {"hours": [ints], "factor": <usable fraction remaining, 0..1>}
+  An "80% reduction" means factor 0.2; "drop to 20%" also means 0.2;
+  "half of normal output" means 0.5. Percentages of OUTPUT REMAINING are the factor directly.
+- minimum_battery_reserve: {"hours": [ints], "minimum_energy_kwh": <number>}
+  If the note states a percent of battery capacity, multiply by the given capacity_kwh.
+- no_charge_window: {"hours": [ints]}  (charging unavailable: "do not charge", "charger isolated/unavailable", "charging disabled")
+- no_discharge_window: {"hours": [ints]} (discharging unavailable: "must not discharge", "discharge disabled")
+- max_grid_window: {"hours": [ints], "max_grid_kwh": <number>} (grid import cap: "grid import must not exceed X kWh", "grid intake at or below X")
+- no_op: null  (notes about cafeterias, menus, bookings, meetings, deadlines, sports, libraries, next week/month, or anything unrelated to energy)
 
 Rules:
-- A note that specifies no constraint for an hour must NOT get a directive.
-- Use "no_op" only if the notes imply nothing at all.
-- Never guess hours or values. If a note is ambiguous, output no directive for it.
-- Output strictly valid JSON and nothing else.
-""".rstrip()
+- hours must be unique integers 0..23 in ascending order, non-empty.
+- factor is the fraction REMAINING, never the reduction percentage.
+- Never invent directive types, hours, or numbers that are not in the note.
+- Notes about future/other days still count if they constrain this 24-hour schedule.
+- Return ONLY a JSON object: {"interpretations": [ ...one object per note, in order... ]}"""
 
 RESPONSE_FORMAT: dict[str, Any] = {
     "type": "json_schema",
     "json_schema": {
-        "name": "directive_interpretation",
+        "name": "directive_interpretations",
         "strict": True,
         "schema": {
             "type": "object",
             "properties": {
-                "directives": {
+                "interpretations": {
                     "type": "array",
                     "items": {
                         "type": "object",
                         "properties": {
+                            "note_index": {"type": "integer"},
+                            "applies": {"type": "boolean"},
                             "directive_type": {
                                 "type": "string",
-                                "enum": list(DirectiveType.__args__),  # type: ignore[attr-defined]
+                                "enum": [
+                                    "solar_reduction",
+                                    "minimum_battery_reserve",
+                                    "no_charge_window",
+                                    "no_discharge_window",
+                                    "max_grid_window",
+                                    "no_op",
+                                ],
                             },
-                            "hours": {
-                                "type": "array",
-                                "items": {"type": "integer", "minimum": 0, "maximum": 23},
+                            "structured_adjustment": {
+                                "type": ["object", "null"],
+                                "additionalProperties": {"type": ["number", "array", "string", "boolean", "null"]},
                             },
-                            "price": {"type": "number"},
-                            "factor": {"type": "number", "minimum": 0, "maximum": 1},
+                            "explanation": {"type": "string"},
                         },
-                        "required": ["directive_type"],
+                        "required": [
+                            "note_index",
+                            "applies",
+                            "directive_type",
+                            "structured_adjustment",
+                            "explanation",
+                        ],
+                        "additionalProperties": False,
                     },
                 }
             },
-            "required": ["directives"],
+            "required": ["interpretations"],
+            "additionalProperties": False,
         },
     },
 }
 
 
 class LLMError(RuntimeError):
-    """Raised when the LLM call or its output fails validation."""
+    """Raised when the LLM call fails or returns unusable output."""
+
+
+def _extract_content(body: dict[str, Any]) -> str:
+    """Pull the assistant text out of an OpenRouter chat completion body."""
+    message = body["choices"][0]["message"]
+    content = message.get("content")
+    if isinstance(content, str) and content.strip():
+        return content
+    if isinstance(content, list):  # some providers return content parts
+        parts = [p.get("text", "") for p in content if isinstance(p, dict)]
+        text = "".join(parts).strip()
+        if text:
+            return text
+    raise KeyError("message.content")
+
+
+def _extract_json(text: str) -> dict[str, Any]:
+    """Parse the JSON object from model text, tolerating code fences or prose."""
+    text = text.strip()
+    fence = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    if fence:
+        text = fence.group(1)
+    else:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end > start:
+            text = text[start : end + 1]
+    data = json.loads(text)
+    if not isinstance(data, dict):
+        raise TypeError("LLM JSON was not an object")
+    return data
+
+
+def _build_messages(notes: list[str], battery_capacity_kwh: float) -> list[dict[str, str]]:
+    notes_block = "\n".join(f"[{i}] {note}" for i, note in enumerate(notes))
+    user_msg = (
+        f"Battery capacity: {battery_capacity_kwh} kWh.\n"
+        f"Operator notes ({len(notes)}):\n{notes_block}\n\n"
+        "Return the interpretations JSON object now, one entry per note in note_index order."
+    )
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_msg},
+    ]
 
 
 async def interpret_notes(
     notes: list[str],
     api_key: str,
     client: httpx.AsyncClient,
+    battery_capacity_kwh: float,
     model: str = DEFAULT_MODEL,
     fallback_model: str = FALLBACK_MODEL,
-) -> InterpretationResponse:
-    """Ask the LLM to map notes -> directives; validate via InterpretationResponse."""
-    user_msg = (
-        "Notes:\n" + "\n".join(f"- {n}" for n in notes)
-        + "\n\nReturn the directives JSON now."
-    )
-    payload: dict[str, Any] = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_msg},
-        ],
-        "response_format": RESPONSE_FORMAT,
-        "temperature": 0.0,
-    }
+) -> list[dict[str, Any]]:
+    """Call the LLM and return the raw interpretations list.
+
+    Raises LLMError on any failure; output is NOT trusted until re-validated
+    by the pipeline's guardrails.
+    """
+    messages = _build_messages(notes, battery_capacity_kwh)
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://github.com/directive-optimizer",
-        "X-Title": "directive-optimizer",
+        "HTTP-Referer": "https://github.com/gridwise-directive-optimizer",
+        "X-Title": "gridwise-directive-optimizer",
     }
 
     last_error: Exception | None = None
     for attempt_model in (model, fallback_model):
+        payload: dict[str, Any] = {
+            "model": attempt_model,
+            "messages": messages,
+            "temperature": 0.0,
+            "response_format": RESPONSE_FORMAT,
+        }
         try:
-            resp = await client.post(
-                OPENROUTER_URL,
-                json=payload | {"model": attempt_model},
-                headers=headers,
-                timeout=30.0,
-            )
+            resp = await client.post(OPENROUTER_URL, json=payload, headers=headers, timeout=25.0)
             resp.raise_for_status()
-            body = resp.json()
-            content = body["choices"][0]["message"]["content"]
-            data = json.loads(content)
-            # Pydantic discriminated union: malformed output raises, never coerced.
-            return InterpretationResponse.model_validate(data)
-        except (httpx.HTTPError, KeyError, IndexError, json.JSONDecodeError, ValueError) as exc:
+            content = _extract_content(resp.json())
+            data = _extract_json(content)
+            interp = data.get("interpretations")
+            if not isinstance(interp, list) or not interp:
+                raise ValueError("missing 'interpretations' array")
+            return interp
+        except (httpx.HTTPError, KeyError, IndexError, ValueError, TypeError) as exc:
             last_error = exc
             continue
 
