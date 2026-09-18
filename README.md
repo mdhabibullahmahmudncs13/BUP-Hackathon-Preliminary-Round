@@ -14,11 +14,11 @@
 </p>
 
 <p align="center">
-  🌐 <a href="http://buphackathonpreliminary.mdhabibullahmahmud.work"><strong>Live dashboard</strong></a>
+  🌐 <a href="http://20.42.57.63/"><strong>Live dashboard</strong></a>
   ·
-  <a href="http://buphackathonpreliminary.mdhabibullahmahmud.work/docs"><strong>API docs</strong></a>
+  <a href="http://20.42.57.63/docs"><strong>API docs</strong></a>
   ·
-  🧪 <code>POST /optimize-energy</code> · <code>GET /health</code>
+  🧪 <code>POST /optimize-energy<a href="http://20.42.57.63/optimize-energy" ></code> · <code>GET /health<a href="http://20.42.57.63/health" ></code>
 </p>
 
 ---
