@@ -8,10 +8,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /srv
 
-# Install the package (deps + app code)
-COPY pyproject.toml ./
+# Runtime deps only (no project build step -> robust, cacheable layer)
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# App code (uvicorn serves app.main:app straight from this directory)
 COPY app ./app
-RUN pip install --no-cache-dir .
 
 # Non-root user for basic hardening
 RUN useradd --create-home appuser
