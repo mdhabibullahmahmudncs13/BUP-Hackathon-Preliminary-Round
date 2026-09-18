@@ -1,0 +1,49 @@
+# Verify the GHCR package visibility and force it to public if needed.
+# Judges must be able to `docker pull` the fallback image anonymously.
+# Run manually: gh workflow run package-visibility.yml
+
+name: package-visibility
+
+on:
+  workflow_dispatch:
+
+permissions:
+  packages: write
+
+env:
+  IMAGE: ghcr.io/mdhabibullahmahmudncs13/gridwise-optimizer
+
+jobs:
+  publicify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show current package state (as repo, packages:write)
+        run: |
+          curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            https://api.github.com/user/packages/container/gridwise-optimizer \
+            | python3 -c "import json,sys; p=json.load(sys.stdin); print('visibility:', p.get('visibility'), '| name:', p.get('name'))"
+
+      - name: Force visibility to public
+        run: |
+          CODE=$(curl -s -o /tmp/vis.out -w "%{http_code}" \
+            -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/user/packages/container/gridwise-optimizer \
+            -d '{"visibility":"public"}')
+          echo "PATCH status: $CODE"; cat /tmp/vis.out
+          test "$CODE" = "200" || test "$CODE" = "204"
+
+      - name: Prove anonymous docker pull works
+        run: |
+          docker pull ${{ env.IMAGE }}:latest
+          docker run --rm -d --name verify -p 8000:8000 ${{ env.IMAGE }}:latest
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8000/health | grep -q '"status":"ok"'; then
+              echo "anonymous pull + /health OK"
+              docker stop verify
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs verify; exit 1
